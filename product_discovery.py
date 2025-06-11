@@ -14,7 +14,19 @@ if not API_KEY:
     raise EnvironmentError("SERPAPI_API_KEY not set in environment")
 
 # Predefined product keywords/categories
-KEYWORDS = ["kitchen", "pets", "fitness", "baby", "home"]
+DEFAULT_KEYWORDS = ["kitchen", "pets", "fitness", "baby", "home"]
+
+
+def get_keywords() -> List[str]:
+    """Return list of keywords from env or fall back to defaults."""
+    env_val = os.getenv("SEARCH_KEYWORDS")
+    if env_val:
+        kws = [k.strip() for k in env_val.split(",") if k.strip()]
+        return kws if kws else DEFAULT_KEYWORDS
+    return DEFAULT_KEYWORDS
+
+
+KEYWORDS = get_keywords()
 
 MAX_RESULTS = 20
 DATA_PATH = os.path.join("data", "product_results.csv")
@@ -76,6 +88,9 @@ def discover_products(variable_budget: float) -> List[Dict]:
     found = []
     for keyword in KEYWORDS:
         items = search_products(keyword)
+        if not items:
+            print(f"Warning: no products returned for keyword '{keyword}'")
+            continue
         valid_asin_found = False
         for item in items:
             sale_price = parse_price(item.get("price"))
@@ -114,6 +129,8 @@ def discover_products(variable_budget: float) -> List[Dict]:
         if not valid_asin_found:
             print(f"Warning: no valid ASINs found for keyword '{keyword}'")
         # silently continue if no products found
+    if not found:
+        print("No products found that meet the criteria")
     return found
 
 
@@ -141,6 +158,9 @@ def save_to_csv(products: List[Dict]):
 
 
 def print_report(products: List[Dict]):
+    if not products:
+        print("No results to display")
+        return
     header = (
         f"{'Title':40} | {'Price':>6} | {'Margin':>6} | "
         f"{'Units':>5} | {'Total Profit':>12}"
@@ -177,6 +197,8 @@ def main():
         return
 
     products = discover_products(variable_budget)
+    if not products:
+        return
     products.sort(key=lambda x: x["total_est_profit"], reverse=True)
     top_products = products[:10]
     print_report(top_products)

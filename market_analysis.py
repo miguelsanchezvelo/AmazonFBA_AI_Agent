@@ -111,8 +111,9 @@ def process_asins(asins: List[str]) -> List[Dict[str, str]]:
 
 
 def load_asins_from_csv(path: str) -> List[str]:
-    """Return list of ASINs from a CSV file column named 'asin'."""
+    """Return list of valid ASINs from a CSV file column named 'asin'."""
     asins = []
+    invalid = 0
     try:
         with open(path, newline="", encoding="utf-8") as f:
             reader = csv.DictReader(f)
@@ -120,15 +121,21 @@ def load_asins_from_csv(path: str) -> List[str]:
                 print(f"CSV {path} is missing an 'asin' column")
                 return []
             for row in reader:
-                val = row.get("asin")
-                if val:
-                    asins.append(val.strip())
+                val = (row.get("asin") or "").strip()
+                if not val:
+                    continue
+                if is_valid_asin(val):
+                    asins.append(val)
+                else:
+                    invalid += 1
     except FileNotFoundError:
         print(f"File not found: {path}")
         return []
     except Exception as exc:
         print(f"Error reading {path}: {exc}")
         return []
+    if invalid:
+        print(f"Skipped {invalid} invalid ASIN(s) in {path}")
     return asins
 
 
@@ -173,6 +180,10 @@ def main():
         asin_input = input(prompt).strip()
         if asin_input:
             asins = [a.strip() for a in asin_input.split(",") if a.strip()]
+            asins = [a for a in asins if is_valid_asin(a)]
+            if not asins:
+                print("No valid ASINs provided")
+                return
         else:
             asins = load_asins_from_csv(DISCOVERY_CSV)
             if not asins:
@@ -187,6 +198,9 @@ def main():
         print("No ASINs provided")
         return
     products = process_asins(asins)
+    if not products:
+        print("No product data retrieved")
+        return
     print_report(products)
     save_to_csv(products)
     print(f"Saved {len(products)} results to {DATA_PATH}")
