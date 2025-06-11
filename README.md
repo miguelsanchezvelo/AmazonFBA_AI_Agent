@@ -19,13 +19,14 @@ This repository contains a simple script to discover potential Amazon FBA produc
    ```
 
 ## Usage
-Run the discovery script and enter your maximum unit price when prompted:
+Run the discovery script and enter your total startup budget when prompted.
+The script reserves part of that budget for tools and subscriptions and uses the rest for product research:
 
 ```bash
 python product_discovery.py
 ```
 
-The script searches several product categories and saves up to 20 results in `data/product_results.csv`.
+The script searches several product categories, estimates profitability, and saves the top 10 opportunities in `data/product_results.csv`.
 
 ## Market Analysis
 To analyze the market potential of existing Amazon products by ASIN, run the
@@ -33,8 +34,9 @@ To analyze the market potential of existing Amazon products by ASIN, run the
 provide a CSV file containing an `asin` column via the `--csv` option. The
 script fetches pricing, rating, review count, and best seller rank using
 SerpAPI, assigns a simple score (HIGH/MEDIUM/LOW) based on rating and review
-count, then saves the results to `data/market_analysis_results.csv`. main
+count, then saves the results to `data/market_analysis_results.csv`.
 
 ```bash
 python market_analysis.py
 ```
+
