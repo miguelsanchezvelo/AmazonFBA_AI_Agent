@@ -20,7 +20,7 @@ This repository contains a simple script to discover potential Amazon FBA produc
 
 ## Usage
 Run the discovery script and enter your total startup budget when prompted.
-The script reserves part of that budget for tools and subscriptions (the amount is controlled by the `FIXED_COST` constant in `product_discovery.py`) and uses the rest for product research:
+The script reserves part of that budget for tools and subscriptions (the amount is controlled by the `FIXED_COST` constant in `product_discovery.py`) and uses the rest for product research. The discovery step queries Amazon directly using SerpAPI's Amazon engine:
 
 ```bash
 python product_discovery.py

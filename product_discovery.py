@@ -29,11 +29,18 @@ FBA_FEE_RATE = 0.2
 COST_RATE = 0.5
 
 
-def parse_price(value: str) -> float:
-    """Extract float price from a string like '$12.34'."""
+def parse_price(value) -> Optional[float]:
+    """Return float price from a string or dict such as {'raw': '$12.34'}."""
     if value is None:
         return None
-    numbers = re.findall(r"\d+\.\d+|\d+", value)
+    if isinstance(value, dict):
+        if "value" in value:
+            try:
+                return float(value["value"])
+            except (TypeError, ValueError):
+                pass
+        value = value.get("raw")
+    numbers = re.findall(r"\d+\.\d+|\d+", str(value))
     if not numbers:
         return None
     return float(numbers[0])
@@ -50,17 +57,18 @@ def extract_asin_from_url(url: str) -> Optional[str]:
 
 
 def search_products(keyword: str) -> List[Dict]:
-    """Search Google Shopping for the given keyword and return item list."""
+    """Search Amazon for the given keyword and return organic results."""
     params = {
-        "engine": "google_shopping",
-        "q": keyword,
+        "engine": "amazon",
+        "amazon_domain": "amazon.com",
+        "type": "search",
+        "keyword": keyword,
+        "page": 1,
         "api_key": API_KEY,
-        "hl": "en",
-        "gl": "us",
     }
     search = GoogleSearch(params)
     results = search.get_dict()
-    return results.get("shopping_results", []) or []
+    return results.get("organic_results", []) or []
 
 
 def discover_products(variable_budget: float) -> List[Dict]:
@@ -70,15 +78,14 @@ def discover_products(variable_budget: float) -> List[Dict]:
         items = search_products(keyword)
         valid_asin_found = False
         for item in items:
-            sale_price = item.get("extracted_price")
-            if sale_price is None:
-                sale_price = parse_price(item.get("price"))
+            sale_price = parse_price(item.get("price"))
             if sale_price is None:
                 continue
             if sale_price > variable_budget:
                 continue
 
-            asin = extract_asin_from_url(item.get("link"))
+            link = item.get("link") or item.get("url")
+            asin = extract_asin_from_url(link)
             if asin is None:
                 continue
             valid_asin_found = True
@@ -100,7 +107,7 @@ def discover_products(variable_budget: float) -> List[Dict]:
                 "units_possible": quantity,
                 "total_est_profit": total_est_profit,
                 "asin": asin,
-                "link": item.get("link"),
+                "link": link,
             })
             if len(found) >= MAX_RESULTS:
                 return found
