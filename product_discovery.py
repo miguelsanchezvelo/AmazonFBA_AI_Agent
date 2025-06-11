@@ -39,6 +39,16 @@ def parse_price(value: str) -> float:
     return float(numbers[0])
 
 
+def extract_asin_from_url(url: str) -> Optional[str]:
+    """Return ASIN if URL contains '/dp/ASIN' pattern."""
+    if not url:
+        return None
+    match = re.search(r"/dp/([A-Z0-9]{10})", url)
+    if not match:
+        return None
+    return match.group(1)
+
+
 def search_products(keyword: str) -> List[Dict]:
     """Search Google Shopping for the given keyword and return item list."""
     params = {
@@ -58,6 +68,7 @@ def discover_products(variable_budget: float) -> List[Dict]:
     found = []
     for keyword in KEYWORDS:
         items = search_products(keyword)
+        valid_asin_found = False
         for item in items:
             sale_price = item.get("extracted_price")
             if sale_price is None:
@@ -66,6 +77,11 @@ def discover_products(variable_budget: float) -> List[Dict]:
                 continue
             if sale_price > variable_budget:
                 continue
+
+            asin = extract_asin_from_url(item.get("link"))
+            if asin is None:
+                continue
+            valid_asin_found = True
 
             unit_cost = sale_price * COST_RATE
             fba_fee = sale_price * FBA_FEE_RATE
@@ -83,11 +99,13 @@ def discover_products(variable_budget: float) -> List[Dict]:
                 "unit_margin": unit_margin,
                 "units_possible": quantity,
                 "total_est_profit": total_est_profit,
-                "asin": item.get("product_id") or item.get("asin"),
+                "asin": asin,
                 "link": item.get("link"),
             })
             if len(found) >= MAX_RESULTS:
                 return found
+        if not valid_asin_found:
+            print(f"Warning: no valid ASINs found for keyword '{keyword}'")
         # silently continue if no products found
     return found
 
