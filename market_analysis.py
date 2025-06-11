@@ -14,6 +14,8 @@ if not API_KEY:
     raise EnvironmentError("SERPAPI_API_KEY not set in environment")
 
 DATA_PATH = os.path.join("data", "market_analysis_results.csv")
+# Default CSV produced by product_discovery.py
+DISCOVERY_CSV = os.path.join("data", "product_results.csv")
 
 
 def parse_float(value: str) -> Optional[float]:
@@ -114,12 +116,19 @@ def load_asins_from_csv(path: str) -> List[str]:
     try:
         with open(path, newline="", encoding="utf-8") as f:
             reader = csv.DictReader(f)
+            if "asin" not in reader.fieldnames:
+                print(f"CSV {path} is missing an 'asin' column")
+                return []
             for row in reader:
                 val = row.get("asin")
                 if val:
                     asins.append(val.strip())
+    except FileNotFoundError:
+        print(f"File not found: {path}")
+        return []
     except Exception as exc:
         print(f"Error reading {path}: {exc}")
+        return []
     return asins
 
 
@@ -153,9 +162,26 @@ def main():
 
     if args.csv:
         asins = load_asins_from_csv(args.csv)
+        if not asins:
+            print(f"No ASINs found in {args.csv}")
+            return
     else:
-        asin_input = input("Enter ASIN(s) separated by comma: ")
-        asins = [a.strip() for a in asin_input.split(",") if a.strip()]
+        prompt = (
+            "Enter ASIN(s) separated by comma "
+            f"(press Enter to load from {DISCOVERY_CSV}): "
+        )
+        asin_input = input(prompt).strip()
+        if asin_input:
+            asins = [a.strip() for a in asin_input.split(",") if a.strip()]
+        else:
+            asins = load_asins_from_csv(DISCOVERY_CSV)
+            if not asins:
+                print(
+                    f"Could not load ASINs from {DISCOVERY_CSV}. "
+                    "Ensure the file exists and has an 'asin' column."
+                )
+                return
+            print(f"Loaded {len(asins)} ASINs from {DISCOVERY_CSV}")
 
     if not asins:
         print("No ASINs provided")
