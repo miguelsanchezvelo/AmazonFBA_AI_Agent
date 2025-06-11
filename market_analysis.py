@@ -1,6 +1,8 @@
 import os
 import csv
 import re
+import argparse
+import time
 from typing import List, Dict, Optional
 
 from dotenv import load_dotenv
@@ -20,6 +22,18 @@ def parse_float(value: str) -> Optional[float]:
         return None
     match = re.search(r"\d+\.\d+|\d+", value)
     return float(match.group()) if match else None
+
+
+def evaluate_potential(product: Dict[str, Optional[float]]) -> str:
+    """Return HIGH/MEDIUM/LOW score based on rating and review count."""
+    rating = product.get("rating") or 0
+    reviews = product.get("reviews") or 0
+    bsr = product.get("bsr")
+    if rating >= 4.3 and reviews >= 300 and bsr:
+        return "HIGH"
+    if rating >= 4.0:
+        return "MEDIUM"
+    return "LOW"
 
 
 def fetch_product_info(asin: str) -> Optional[Dict[str, str]]:
@@ -78,8 +92,27 @@ def process_asins(asins: List[str]) -> List[Dict[str, str]]:
             continue
         data = fetch_product_info(asin)
         if data:
+            data["score"] = evaluate_potential(data)
             results.append(data)
+        else:
+            print(f"Skipping ASIN {asin}")
+        time.sleep(1)  # small delay for rate limits
     return results
+
+
+def load_asins_from_csv(path: str) -> List[str]:
+    """Return list of ASINs from a CSV file column named 'asin'."""
+    asins = []
+    try:
+        with open(path, newline="", encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                val = row.get("asin")
+                if val:
+                    asins.append(val.strip())
+    except Exception as exc:
+        print(f"Error reading {path}: {exc}")
+    return asins
 
 
 def save_to_csv(products: List[Dict[str, str]]):
@@ -87,7 +120,7 @@ def save_to_csv(products: List[Dict[str, str]]):
     with open(DATA_PATH, "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(
             f,
-            fieldnames=["asin", "title", "price", "rating", "reviews", "bsr", "link"],
+            fieldnames=["asin", "title", "price", "rating", "reviews", "bsr", "link", "score"],
         )
         writer.writeheader()
         for item in products:
@@ -101,12 +134,24 @@ def print_report(products: List[Dict[str, str]]):
         print(f"Price: {p.get('price')}")
         print(f"Rating: {p.get('rating')} ({p.get('reviews')} reviews)")
         print(f"BSR: {p.get('bsr')}")
+        print(f"Score: {p.get('score')}")
         print(f"Link: {p.get('link')}\n")
 
 
 def main():
-    asin_input = input("Enter ASIN(s) separated by comma: ")
-    asins = [a.strip() for a in asin_input.split(",") if a.strip()]
+    parser = argparse.ArgumentParser(description="Analyze Amazon ASINs")
+    parser.add_argument("--csv", help="optional CSV file with asin column")
+    args = parser.parse_args()
+
+    if args.csv:
+        asins = load_asins_from_csv(args.csv)
+    else:
+        asin_input = input("Enter ASIN(s) separated by comma: ")
+        asins = [a.strip() for a in asin_input.split(",") if a.strip()]
+
+    if not asins:
+        print("No ASINs provided")
+        return
     products = process_asins(asins)
     print_report(products)
     save_to_csv(products)
