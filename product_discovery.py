@@ -1,7 +1,8 @@
 import os
 import csv
 import re
-from typing import List, Dict
+import argparse
+from typing import List, Dict, Optional
 
 from dotenv import load_dotenv
 from serpapi import GoogleSearch
@@ -13,22 +14,19 @@ if not API_KEY:
     raise EnvironmentError("SERPAPI_API_KEY not set in environment")
 
 # Predefined product keywords/categories
-KEYWORDS = ["kitchen", "fitness", "pets", "baby", "office", "gadgets"]
+KEYWORDS = ["kitchen", "pets", "fitness", "baby", "home"]
 
 MAX_RESULTS = 20
 DATA_PATH = os.path.join("data", "product_results.csv")
 
 # Reserve this amount from the startup budget for tools/subscriptions
-FIXED_COST = 200.0
+FIXED_COST = float(os.getenv("FIXED_COST", "200"))
 
 # Portion of the sale price taken by FBA fees
 FBA_FEE_RATE = 0.2
 
 # Estimated manufacturing cost as a portion of sale price
 COST_RATE = 0.5
-
-# Estimated number of units used to derive a per-unit budget
-ORDER_SIZE_ESTIMATE = 20
 
 
 def parse_price(value: str) -> float:
@@ -58,18 +56,15 @@ def search_products(keyword: str) -> List[Dict]:
 def discover_products(variable_budget: float) -> List[Dict]:
     """Search for products and calculate potential margins."""
     found = []
-    per_unit_budget = variable_budget / ORDER_SIZE_ESTIMATE
-    price_cap = per_unit_budget * 0.7
     for keyword in KEYWORDS:
         items = search_products(keyword)
-        count = 0
         for item in items:
             sale_price = item.get("extracted_price")
             if sale_price is None:
                 sale_price = parse_price(item.get("price"))
             if sale_price is None:
                 continue
-            if sale_price > price_cap:
+            if sale_price > variable_budget:
                 continue
 
             unit_cost = sale_price * COST_RATE
@@ -78,23 +73,22 @@ def discover_products(variable_budget: float) -> List[Dict]:
             quantity = int(variable_budget // unit_cost)
             if quantity <= 0:
                 continue
-            total_margin = unit_margin * quantity
+            total_est_profit = unit_margin * quantity
 
             found.append({
-                "category": keyword,
                 "title": item.get("title"),
-                "sale_price": sale_price,
-                "unit_cost": unit_cost,
+                "price": sale_price,
+                "est_cost": unit_cost,
+                "fba_fees": fba_fee,
                 "unit_margin": unit_margin,
-                "quantity": quantity,
-                "total_margin": total_margin,
-                "product_id": item.get("product_id") or item.get("asin"),
+                "units_possible": quantity,
+                "total_est_profit": total_est_profit,
+                "asin": item.get("product_id") or item.get("asin"),
                 "link": item.get("link"),
             })
-            count += 1
             if len(found) >= MAX_RESULTS:
                 return found
-        print(f"{keyword}: {count} opportunities found")
+        # silently continue if no products found
     return found
 
 
@@ -105,14 +99,14 @@ def save_to_csv(products: List[Dict]):
         writer = csv.DictWriter(
             f,
             fieldnames=[
-                "category",
                 "title",
-                "sale_price",
-                "unit_cost",
+                "price",
+                "est_cost",
+                "fba_fees",
                 "unit_margin",
-                "quantity",
-                "total_margin",
-                "product_id",
+                "units_possible",
+                "total_est_profit",
+                "asin",
                 "link",
             ],
         )
@@ -123,37 +117,42 @@ def save_to_csv(products: List[Dict]):
 
 def print_report(products: List[Dict]):
     header = (
-        f"{'Title':50} | {'Price':>6} | {'Est. Cost':>9} | "
-        f"{'Est. Margin':>10} | {'Units':>5} | {'Total Profit':>12}"
+        f"{'Title':40} | {'Price':>6} | {'Margin':>6} | "
+        f"{'Units':>5} | {'Total Profit':>12}"
     )
     print(header)
     print("-" * len(header))
     for p in products:
-        title = (p["title"] or "")[:50]
+        title = (p.get("title") or "")[:40]
         print(
-            f"{title:50} | "
-            f"${p['sale_price']:>6.2f} | "
-            f"${p['unit_cost']:>8.2f} | "
-            f"${p['unit_margin']:>9.2f} | "
-            f"{p['quantity']:>5} | "
-            f"${p['total_margin']:>11.2f}"
+            f"{title:40} | "
+            f"${p['price']:>6.2f} | "
+            f"${p['unit_margin']:>6.2f} | "
+            f"{p['units_possible']:>5} | "
+            f"${p['total_est_profit']:>11.2f}"
         )
 
 
 def main():
+    parser = argparse.ArgumentParser(description="Discover Amazon FBA opportunities")
+    parser.add_argument("--reserve", type=float, help="override fixed cost reserve")
+    args = parser.parse_args()
+
+    reserve = args.reserve if args.reserve is not None else FIXED_COST
+
     try:
         budget = float(input("Enter your total startup budget in USD: "))
     except ValueError:
         print("Invalid budget")
         return
 
-    variable_budget = budget - FIXED_COST
+    variable_budget = budget - reserve
     if variable_budget <= 0:
         print("Budget is too low after reserving fixed costs")
         return
 
     products = discover_products(variable_budget)
-    products.sort(key=lambda x: x["total_margin"], reverse=True)
+    products.sort(key=lambda x: x["total_est_profit"], reverse=True)
     top_products = products[:10]
     print_report(top_products)
     save_to_csv(top_products)
