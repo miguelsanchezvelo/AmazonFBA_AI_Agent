@@ -33,7 +33,7 @@ To analyze the market potential of existing Amazon products by ASIN, run the
 provide a CSV file containing an `asin` column via the `--csv` option. The
 script fetches pricing, rating, review count, and best seller rank using
 SerpAPI, assigns a simple score (HIGH/MEDIUM/LOW) based on rating and review
-count, then saves the results to `data/market_analysis_results.csv`.
+count, then saves the results to `data/market_analysis_results.csv`. main
 
 ```bash
 python market_analysis.py

@@ -24,6 +24,11 @@ def parse_float(value: str) -> Optional[float]:
     return float(match.group()) if match else None
 
 
+def is_valid_asin(asin: str) -> bool:
+    """Return True if the string looks like a valid 10-character ASIN."""
+    return bool(re.fullmatch(r"[A-Z0-9]{10}", asin.upper()))
+
+
 def evaluate_potential(product: Dict[str, Optional[float]]) -> str:
     """Return HIGH/MEDIUM/LOW score based on rating and review count."""
     rating = product.get("rating") or 0
@@ -89,6 +94,9 @@ def process_asins(asins: List[str]) -> List[Dict[str, str]]:
     for asin in asins:
         asin = asin.strip()
         if not asin:
+            continue
+        if not is_valid_asin(asin):
+            print(f"Invalid ASIN {asin}, skipping")
             continue
         data = fetch_product_info(asin)
         if data:
