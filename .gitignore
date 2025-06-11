@@ -1,0 +1,8 @@
+# Ignore environment variables file
+.env
+
+# Python cache
+__pycache__/
+
+# CSV output
+/data/product_results.csv
