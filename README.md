@@ -5,7 +5,12 @@ This repository contains a simple script to discover potential Amazon FBA produc
 ## Setup
 1. Install dependencies:
    ```bash
-   pip install python-dotenv serpapi
+   pip install python-dotenv google-search-results
+   ```
+   The SerpAPI client is imported in the code as `from serpapi import GoogleSearch`.
+   If you previously installed the wrong package, you can remove it with:
+   ```bash
+   pip uninstall serpapi
    ```
 2. Copy `.env.example` to `.env` and add your SerpAPI API key:
    ```bash
