@@ -1,141 +1,98 @@
 import os
 import csv
 import re
-import argparse
+from math import floor
 from typing import List, Dict, Optional
 
 from dotenv import load_dotenv
 from serpapi import GoogleSearch
 
-# Load SERPAPI_API_KEY from .env
+# Load environment and validate API key
 load_dotenv()
 API_KEY = os.getenv("SERPAPI_API_KEY")
 if not API_KEY:
-    raise EnvironmentError("SERPAPI_API_KEY not set in environment")
+    raise SystemExit("Fatal: SERPAPI_API_KEY not set in environment")
 
-# Predefined product keywords/categories
-DEFAULT_KEYWORDS = ["kitchen", "pets", "fitness", "baby", "home"]
-
-
-def get_keywords() -> List[str]:
-    """Return list of keywords from env or fall back to defaults."""
-    env_val = os.getenv("SEARCH_KEYWORDS")
-    if env_val:
-        kws = [k.strip() for k in env_val.split(",") if k.strip()]
-        return kws if kws else DEFAULT_KEYWORDS
-    return DEFAULT_KEYWORDS
-
-
-KEYWORDS = get_keywords()
-
-MAX_RESULTS = 20
+# Constants
+CATEGORIES = ["kitchen", "pets", "fitness", "baby", "home"]
 DATA_PATH = os.path.join("data", "product_results.csv")
-
-# Reserve this amount from the startup budget for tools/subscriptions
-FIXED_COST = float(os.getenv("FIXED_COST", "200"))
-
-# Portion of the sale price taken by FBA fees
+FIXED_COST = 200.0
 FBA_FEE_RATE = 0.2
-
-# Estimated manufacturing cost as a portion of sale price
 COST_RATE = 0.5
 
 
 def parse_price(value) -> Optional[float]:
-    """Return float price from a string or dict such as {'raw': '$12.34'}."""
+    """Extract a float price from a raw SerpAPI value."""
     if value is None:
         return None
     if isinstance(value, dict):
-        if "value" in value:
-            try:
-                return float(value["value"])
-            except (TypeError, ValueError):
-                pass
-        value = value.get("raw")
-    numbers = re.findall(r"\d+\.\d+|\d+", str(value))
-    if not numbers:
-        return None
-    return float(numbers[0])
+        value = value.get("raw") or value.get("value")
+    match = re.search(r"\d+\.\d+|\d+", str(value))
+    return float(match.group()) if match else None
 
 
 def extract_asin_from_url(url: str) -> Optional[str]:
-    """Return ASIN if URL contains '/dp/ASIN' pattern."""
+    """Return ASIN if present in the URL."""
     if not url:
         return None
     match = re.search(r"/dp/([A-Z0-9]{10})", url)
-    if not match:
-        return None
-    return match.group(1)
+    return match.group(1) if match else None
 
 
-def search_products(keyword: str) -> List[Dict]:
-    """Search Amazon for the given keyword and return organic results."""
+def search_category(category: str) -> List[Dict]:
     params = {
         "engine": "amazon",
-        "amazon_domain": "amazon.com",
         "type": "search",
-        "keyword": keyword,
+        "search_term": category,
+        "amazon_domain": "amazon.com",
         "page": 1,
         "api_key": API_KEY,
     }
     search = GoogleSearch(params)
-    results = search.get_dict()
-    return results.get("organic_results", []) or []
+    data = search.get_dict()
+    return data.get("organic_results", []) or []
 
 
-def discover_products(variable_budget: float) -> List[Dict]:
-    """Search for products and calculate potential margins."""
-    found = []
-    for keyword in KEYWORDS:
-        items = search_products(keyword)
-        if not items:
-            print(f"Warning: no products returned for keyword '{keyword}'")
-            continue
-        valid_asin_found = False
-        for item in items:
-            sale_price = parse_price(item.get("price"))
-            if sale_price is None:
+def discover_products(variable_budget: float) -> List[Dict[str, object]]:
+    results: List[Dict[str, object]] = []
+    for category in CATEGORIES:
+        raw_items = search_category(category)
+        print(f"Category '{category}' returned {len(raw_items)} results")
+        skipped = 0
+        for item in raw_items:
+            price = parse_price(item.get("price"))
+            url = item.get("link") or item.get("url")
+            asin = extract_asin_from_url(url)
+
+            if price is None or asin is None or price > variable_budget:
+                skipped += 1
                 continue
-            if sale_price > variable_budget:
-                continue
 
-            link = item.get("link") or item.get("url")
-            asin = extract_asin_from_url(link)
-            if asin is None:
+            est_cost = price * COST_RATE
+            fba_fees = price * FBA_FEE_RATE
+            unit_margin = price - est_cost - fba_fees
+            units_possible = floor(variable_budget / est_cost)
+            if units_possible <= 0:
+                skipped += 1
                 continue
-            valid_asin_found = True
+            total_est_profit = unit_margin * units_possible
 
-            unit_cost = sale_price * COST_RATE
-            fba_fee = sale_price * FBA_FEE_RATE
-            unit_margin = sale_price - unit_cost - fba_fee
-            quantity = int(variable_budget // unit_cost)
-            if quantity <= 0:
-                continue
-            total_est_profit = unit_margin * quantity
-
-            found.append({
+            results.append({
                 "title": item.get("title"),
-                "price": sale_price,
-                "est_cost": unit_cost,
-                "fba_fees": fba_fee,
+                "price": price,
+                "est_cost": est_cost,
+                "fba_fees": fba_fees,
                 "unit_margin": unit_margin,
-                "units_possible": quantity,
+                "units_possible": units_possible,
                 "total_est_profit": total_est_profit,
                 "asin": asin,
-                "link": link,
+                "link": url,
             })
-            if len(found) >= MAX_RESULTS:
-                return found
-        if not valid_asin_found:
-            print(f"Warning: no valid ASINs found for keyword '{keyword}'")
-        # silently continue if no products found
-    if not found:
-        print("No products found that meet the criteria")
-    return found
+        print(f"Skipped {skipped} products for '{category}'\n")
+    return results
 
 
-def save_to_csv(products: List[Dict]):
-    """Save ranked product results to CSV."""
+def save_to_csv(products: List[Dict[str, object]]):
     os.makedirs(os.path.dirname(DATA_PATH), exist_ok=True)
     with open(DATA_PATH, "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(
@@ -153,17 +110,13 @@ def save_to_csv(products: List[Dict]):
             ],
         )
         writer.writeheader()
-        for item in products:
-            writer.writerow(item)
+        for row in products:
+            writer.writerow(row)
 
 
-def print_report(products: List[Dict]):
-    if not products:
-        print("No results to display")
-        return
+def print_report(products: List[Dict[str, object]]):
     header = (
-        f"{'Title':40} | {'Price':>6} | {'Margin':>6} | "
-        f"{'Units':>5} | {'Total Profit':>12}"
+        f"{'Title':40} | {'Price':>6} | {'Margin':>6} | {'Units':>5} | {'Total Profit':>12}"
     )
     print(header)
     print("-" * len(header))
@@ -179,28 +132,22 @@ def print_report(products: List[Dict]):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Discover Amazon FBA opportunities")
-    parser.add_argument("--reserve", type=float, help="override fixed cost reserve")
-    args = parser.parse_args()
-
-    reserve = args.reserve if args.reserve is not None else FIXED_COST
-
     try:
         budget = float(input("Enter your total startup budget in USD: "))
     except ValueError:
-        print("Invalid budget")
-        return
+        raise SystemExit("Invalid budget amount")
 
-    variable_budget = budget - reserve
+    variable_budget = budget - FIXED_COST
     if variable_budget <= 0:
-        print("Budget is too low after reserving fixed costs")
-        return
+        raise SystemExit("Budget too low after reserving fixed costs")
 
     products = discover_products(variable_budget)
     if not products:
-        return
+        raise SystemExit("No valid products found")
+
     products.sort(key=lambda x: x["total_est_profit"], reverse=True)
     top_products = products[:10]
+
     print_report(top_products)
     save_to_csv(top_products)
     print(f"Saved {len(top_products)} products to {DATA_PATH}")
