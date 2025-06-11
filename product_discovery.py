@@ -43,13 +43,17 @@ def search_category(category: str) -> List[Dict]:
     params = {
         "engine": "amazon",
         "type": "search",
-        "search_term": category,
+        "keyword": category,
         "amazon_domain": "amazon.com",
+        "gl": "us",
+        "hl": "en",
         "page": 1,
         "api_key": API_KEY,
     }
     search = GoogleSearch(params)
     data = search.get_dict()
+    if "error" in data:
+        print("SERPAPI ERROR:", data["error"])
     return data.get("organic_results", []) or []
 
 
