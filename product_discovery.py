@@ -2,7 +2,6 @@ import os
 import csv
 import re
 from typing import List, Dict
-import random
 
 from dotenv import load_dotenv
 from serpapi import GoogleSearch
@@ -22,11 +21,14 @@ DATA_PATH = os.path.join("data", "product_results.csv")
 # Reserve this amount from the startup budget for tools/subscriptions
 FIXED_COST = 200.0
 
-# Cost multiplier range for estimating landed cost of goods
-COST_RANGE = (0.3, 0.7)
-
 # Portion of the sale price taken by FBA fees
-FBA_FEE_RATE = 0.3
+FBA_FEE_RATE = 0.2
+
+# Estimated manufacturing cost as a portion of sale price
+COST_RATE = 0.5
+
+# Estimated number of units used to derive a per-unit budget
+ORDER_SIZE_ESTIMATE = 20
 
 
 def parse_price(value: str) -> float:
@@ -56,6 +58,8 @@ def search_products(keyword: str) -> List[Dict]:
 def discover_products(variable_budget: float) -> List[Dict]:
     """Search for products and calculate potential margins."""
     found = []
+    per_unit_budget = variable_budget / ORDER_SIZE_ESTIMATE
+    price_cap = per_unit_budget * 0.7
     for keyword in KEYWORDS:
         items = search_products(keyword)
         count = 0
@@ -65,20 +69,23 @@ def discover_products(variable_budget: float) -> List[Dict]:
                 sale_price = parse_price(item.get("price"))
             if sale_price is None:
                 continue
+            if sale_price > price_cap:
+                continue
 
-            cost_multiplier = random.uniform(*COST_RANGE)
-            unit_cost = sale_price * cost_multiplier
+            unit_cost = sale_price * COST_RATE
+            fba_fee = sale_price * FBA_FEE_RATE
+            unit_margin = sale_price - unit_cost - fba_fee
             quantity = int(variable_budget // unit_cost)
             if quantity <= 0:
                 continue
-            profit_per_unit = sale_price * (1 - FBA_FEE_RATE) - unit_cost
-            total_margin = profit_per_unit * quantity
+            total_margin = unit_margin * quantity
 
             found.append({
                 "category": keyword,
                 "title": item.get("title"),
                 "sale_price": sale_price,
                 "unit_cost": unit_cost,
+                "unit_margin": unit_margin,
                 "quantity": quantity,
                 "total_margin": total_margin,
                 "product_id": item.get("product_id") or item.get("asin"),
@@ -102,6 +109,7 @@ def save_to_csv(products: List[Dict]):
                 "title",
                 "sale_price",
                 "unit_cost",
+                "unit_margin",
                 "quantity",
                 "total_margin",
                 "product_id",
@@ -114,13 +122,22 @@ def save_to_csv(products: List[Dict]):
 
 
 def print_report(products: List[Dict]):
+    header = (
+        f"{'Title':50} | {'Price':>6} | {'Est. Cost':>9} | "
+        f"{'Est. Margin':>10} | {'Units':>5} | {'Total Profit':>12}"
+    )
+    print(header)
+    print("-" * len(header))
     for p in products:
-        print(f"Category: {p['category']}")
-        print(f"Title: {p['title']}")
-        print(f"Sale Price: ${p['sale_price']:.2f}")
-        print(f"Est. Unit Cost: ${p['unit_cost']:.2f}")
-        print(f"Quantity Purchasable: {p['quantity']}")
-        print(f"Expected Total Margin: ${p['total_margin']:.2f}\n")
+        title = (p["title"] or "")[:50]
+        print(
+            f"{title:50} | "
+            f"${p['sale_price']:>6.2f} | "
+            f"${p['unit_cost']:>8.2f} | "
+            f"${p['unit_margin']:>9.2f} | "
+            f"{p['quantity']:>5} | "
+            f"${p['total_margin']:>11.2f}"
+        )
 
 
 def main():
