@@ -31,7 +31,9 @@ The script searches several product categories, estimates profitability, and sav
 ## Market Analysis
 To analyze the market potential of existing Amazon products by ASIN, run the
 `market_analysis.py` script. You can enter one or more ASINs when prompted or
-provide a CSV file containing an `asin` column via the `--csv` option. The
+provide a CSV file containing an `asin` column via the `--csv` option. If you
+press **Enter** without typing any ASINs, the script will automatically load the
+values from `data/product_results.csv` created by `product_discovery.py`. The
 script fetches pricing, rating, review count, and best seller rank using
 SerpAPI, assigns a simple score (HIGH/MEDIUM/LOW) based on rating and review
 count, then saves the results to `data/market_analysis_results.csv`.
