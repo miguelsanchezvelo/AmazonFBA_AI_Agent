@@ -43,7 +43,8 @@ def search_category(category: str) -> List[Dict]:
     params = {
         "engine": "amazon",
         "type": "search",
-        "keyword": category,
+        # "k" is the search query parameter for Amazon results
+        "k": category,
         "amazon_domain": "amazon.com",
         "gl": "us",
         "hl": "en",
