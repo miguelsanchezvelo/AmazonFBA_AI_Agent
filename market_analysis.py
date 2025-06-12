@@ -15,6 +15,7 @@ load_dotenv()
 CONFIG_PATH = "config.json"
 DATA_PATH = os.path.join("data", "market_analysis_results.csv")
 DISCOVERY_CSV = os.path.join("data", "product_results.csv")
+MOCK_DATA_CSV = os.path.join("data", "mock_market_data.csv")
 
 SERPAPI_KEY: Optional[str] = None
 KEEPA_KEY: Optional[str] = None
@@ -304,6 +305,36 @@ def save_results(products: List[Dict[str, object]]):
             writer.writerow(row)
 
 
+def save_to_csv(products: List[Dict[str, object]]):
+    """Compatibility wrapper that saves results to ``DATA_PATH``."""
+    save_results(products)
+
+
+def print_report(products: List[Dict[str, object]]):
+    """Print a simple text report of analyzed products."""
+    header = (
+        f"{'ASIN':12} | {'Title':40} | {'Price':>6} | {'Rating':>6} | "
+        f"{'Reviews':>7} | {'BSR':>10} | {'Potential':>8}"
+    )
+    print(header)
+    print("-" * len(header))
+    for p in products:
+        price = p.get('price')
+        price_str = f"${price:.2f}" if isinstance(price, (int, float)) else 'N/A'
+        rating = p.get('rating') or 0
+        reviews = int(p.get('reviews') or 0)
+        bsr = p.get('bsr') or ''
+        print(
+            f"{(p.get('asin') or ''):12} | "
+            f"{(p.get('title') or '')[:40]:40} | "
+            f"{price_str:>6} | "
+            f"{rating:>6.1f} | "
+            f"{reviews:>7} | "
+            f"{str(bsr):>10} | "
+            f"{p.get('potential', ''):>8}"
+        )
+
+
 def analyze(asins: List[str], use_serp: bool, use_keepa: bool, fallback: bool) -> List[Dict[str, object]]:
     results: List[Dict[str, object]] = []
     for asin in asins:
@@ -344,16 +375,44 @@ def main():
     else:
         mode = "MANUAL"
 
-    print(f"Operating in {mode.lower()} mode")
+    if mode == "FULL":
+        print("Operating in full API mode")
+    elif mode == "PARTIAL":
+        missing = []
+        if not serp_available:
+            missing.append("SerpAPI")
+        if not keepa_available:
+            missing.append("Keepa")
+        print(
+            "Operating in partial mode - missing " + ", ".join(missing)
+        )
+    else:
+        print("Operating in manual/simulated mode - no API keys found")
 
     if mode == "MANUAL":
         if args.csv:
             products = load_manual_csv(args.csv)
         else:
             products = manual_input()
+            if not products:
+                print(f"No manual data entered. Trying '{MOCK_DATA_CSV}' ...")
+                products = load_manual_csv(MOCK_DATA_CSV)
+                if products:
+                    print(
+                        f"Loaded {len(products)} products from mock file."
+                    )
+                else:
+                    print(
+                        f"Warning: mock data file '{MOCK_DATA_CSV}' not found or empty"
+                    )
+                    return
+        if not products:
+            print("No product data available. Exiting.")
+            return
         for p in products:
             p["potential"] = evaluate_potential(p)
-        save_results(products)
+        print_report(products)
+        save_to_csv(products)
         print(f"Saved {len(products)} products to {DATA_PATH}")
         return
 
@@ -376,7 +435,8 @@ def main():
         print("No data collected")
         return
 
-    save_results(products)
+    print_report(products)
+    save_to_csv(products)
     print(f"Saved {len(products)} products to {DATA_PATH}")
 
 
