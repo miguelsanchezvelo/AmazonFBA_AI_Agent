@@ -3,7 +3,6 @@ import os
 import csv
 import re
 import argparse
-import time
 import json
 from typing import List, Dict, Optional, Tuple
 
@@ -21,8 +20,19 @@ SERPAPI_KEY: Optional[str] = None
 KEEPA_KEY: Optional[str] = None
 
 
-def load_keys() -> Tuple[str, str]:
+def load_keys(prompt: bool = False) -> Tuple[Optional[str], Optional[str]]:
+    """Load API keys from environment or config file.
+
+    If ``prompt`` is ``True`` and a key is missing, the user will be asked for
+    it. Otherwise missing keys will remain ``None``.
+    """
+
     global SERPAPI_KEY, KEEPA_KEY
+
+    if SERPAPI_KEY is not None or KEEPA_KEY is not None:
+        # Keys already loaded
+        return SERPAPI_KEY, KEEPA_KEY
+
     config: Dict[str, str] = {}
     if os.path.exists(CONFIG_PATH):
         try:
@@ -32,14 +42,22 @@ def load_keys() -> Tuple[str, str]:
             print(f"Warning: could not read {CONFIG_PATH}: {exc}")
 
     SERPAPI_KEY = os.getenv("SERPAPI_API_KEY") or config.get("serpapi_key")
-    if not SERPAPI_KEY:
-        SERPAPI_KEY = input("Enter your SerpAPI key: ").strip()
-
     KEEPA_KEY = os.getenv("KEEPA_API_KEY") or config.get("keepa_key")
-    if not KEEPA_KEY:
-        KEEPA_KEY = input("Enter your Keepa API key: ").strip()
+
+    if prompt:
+        if not SERPAPI_KEY:
+            SERPAPI_KEY = input("Enter your SerpAPI key (or leave blank): ").strip() or None
+        if not KEEPA_KEY:
+            KEEPA_KEY = input("Enter your Keepa API key (or leave blank): ").strip() or None
 
     return SERPAPI_KEY, KEEPA_KEY
+
+
+def is_api_available() -> bool:
+    """Return ``True`` if at least one API key is configured."""
+
+    load_keys(prompt=False)
+    return bool(SERPAPI_KEY) or bool(KEEPA_KEY)
 
 
 def parse_float(value: str) -> Optional[float]:
@@ -173,3 +191,194 @@ def get_product_data_keepa(asin: Optional[str] = None, keywords: Optional[str] =
     except Exception as e:
         print(f"Keepa error: {e}")
     return None
+
+
+def load_asins_from_csv(path: str) -> List[str]:
+    """Load ASIN values from a CSV file containing an ``asin`` column."""
+    asins: List[str] = []
+    if not os.path.exists(path):
+        print(f"Warning: CSV file '{path}' not found")
+        return asins
+    with open(path, newline="", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            asin = (row.get("asin") or "").strip()
+            if asin and is_valid_asin(asin):
+                asins.append(asin)
+    return asins
+
+
+def prompt_asins() -> List[str]:
+    """Prompt the user for ASIN values."""
+    raw = input(
+        "Enter ASINs separated by spaces (leave blank to load from discovery results): "
+    ).strip()
+    if not raw:
+        return []
+    return [a.strip().upper() for a in raw.split() if is_valid_asin(a)]
+
+
+def load_manual_csv(path: str) -> List[Dict[str, object]]:
+    """Load mock product data from a CSV file for manual mode."""
+    products: List[Dict[str, object]] = []
+    if not os.path.exists(path):
+        print(f"Warning: mock CSV '{path}' not found")
+        return products
+    with open(path, newline="", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            products.append(
+                {
+                    "asin": (row.get("asin") or "").strip(),
+                    "title": row.get("title") or "",
+                    "price": parse_float(str(row.get("price"))),
+                    "rating": parse_float(str(row.get("rating"))),
+                    "reviews": parse_float(str(row.get("reviews"))),
+                    "bsr": row.get("bsr"),
+                    "link": row.get("link") or "",
+                    "source": "manual",
+                    "estimated": True,
+                }
+            )
+    return products
+
+
+def manual_input(asins: Optional[List[str]] = None) -> List[Dict[str, object]]:
+    """Prompt the user to manually enter product data."""
+    products: List[Dict[str, object]] = []
+    print("Manual data entry mode. Leave ASIN blank to finish.")
+    index = 0
+    while True:
+        if asins and index < len(asins):
+            asin = asins[index]
+            print(f"Provide data for ASIN {asin}")
+        else:
+            asin = input("ASIN: ").strip()
+            if not asin:
+                break
+        title = input("Title: ").strip()
+        price = parse_float(input("Price: "))
+        rating = parse_float(input("Rating: "))
+        reviews = parse_float(input("Reviews: "))
+        bsr = input("Best Seller Rank: ").strip() or None
+        link = input("Link: ").strip()
+        products.append(
+            {
+                "asin": asin,
+                "title": title,
+                "price": price,
+                "rating": rating,
+                "reviews": reviews,
+                "bsr": bsr,
+                "link": link,
+                "source": "manual",
+                "estimated": True,
+            }
+        )
+        index += 1
+        if asins and index >= len(asins):
+            break
+    return products
+
+
+def save_results(products: List[Dict[str, object]]):
+    os.makedirs(os.path.dirname(DATA_PATH), exist_ok=True)
+    with open(DATA_PATH, "w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(
+            f,
+            fieldnames=[
+                "asin",
+                "title",
+                "price",
+                "rating",
+                "reviews",
+                "bsr",
+                "link",
+                "source",
+                "estimated",
+                "potential",
+            ],
+        )
+        writer.writeheader()
+        for row in products:
+            writer.writerow(row)
+
+
+def analyze(asins: List[str], use_serp: bool, use_keepa: bool, fallback: bool) -> List[Dict[str, object]]:
+    results: List[Dict[str, object]] = []
+    for asin in asins:
+        product: Optional[Dict[str, object]] = None
+        if use_serp:
+            product = get_product_data_serpapi(asin=asin)
+        if not product and use_keepa:
+            product = get_product_data_keepa(asin=asin)
+        if product and not product.get("bsr") and use_keepa and fallback:
+            # try to supplement missing info with Keepa
+            sup = get_product_data_keepa(asin=asin)
+            if sup:
+                for k in ["price", "rating", "reviews", "bsr", "link"]:
+                    if not product.get(k):
+                        product[k] = sup.get(k)
+        if not product:
+            print(f"No data found for {asin}")
+            continue
+        product["potential"] = evaluate_potential(product)
+        results.append(product)
+    return results
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Analyze Amazon market data")
+    parser.add_argument("--csv", help="CSV with ASINs (API mode) or mock data (manual mode)")
+    parser.add_argument("--no-fallback", action="store_true", help="disable API fallback searches")
+    args = parser.parse_args()
+
+    load_keys(prompt=False)
+    serp_available = bool(SERPAPI_KEY)
+    keepa_available = bool(KEEPA_KEY)
+
+    if serp_available and keepa_available:
+        mode = "FULL"
+    elif serp_available or keepa_available:
+        mode = "PARTIAL"
+    else:
+        mode = "MANUAL"
+
+    print(f"Operating in {mode.lower()} mode")
+
+    if mode == "MANUAL":
+        if args.csv:
+            products = load_manual_csv(args.csv)
+        else:
+            products = manual_input()
+        for p in products:
+            p["potential"] = evaluate_potential(p)
+        save_results(products)
+        print(f"Saved {len(products)} products to {DATA_PATH}")
+        return
+
+    # API based modes
+    asins: List[str] = []
+    if args.csv:
+        asins = load_asins_from_csv(args.csv)
+    else:
+        asins = prompt_asins()
+        if not asins:
+            # load from discovery CSV if available
+            if os.path.exists(DISCOVERY_CSV):
+                asins = load_asins_from_csv(DISCOVERY_CSV)
+    if not asins:
+        print("No ASINs provided")
+        return
+
+    products = analyze(asins, serp_available, keepa_available, not args.no_fallback)
+    if not products:
+        print("No data collected")
+        return
+
+    save_results(products)
+    print(f"Saved {len(products)} products to {DATA_PATH}")
+
+
+if __name__ == "__main__":
+    main()
