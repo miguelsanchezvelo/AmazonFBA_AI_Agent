@@ -12,10 +12,12 @@ This repository contains a simple script to discover potential Amazon FBA produc
    ```bash
    pip uninstall serpapi
    ```
-2. Copy `.env.example` to `.env` and add your SerpAPI API key:
+2. Copy `.env.example` to `.env` and add your SerpAPI API key. Optionally copy
+   `config.example.json` to `config.json` to store both SerpAPI and Keepa keys:
    ```bash
    cp .env.example .env
    # edit .env and set SERPAPI_API_KEY
+   cp config.example.json config.json  # edit and set KEEPPA/SerpAPI keys
    ```
 
 ## Usage
@@ -35,9 +37,10 @@ To analyze the market potential of existing Amazon products by ASIN, run the
 provide a CSV file containing an `asin` column via the `--csv` option. If you
 press **Enter** without typing any ASINs, the script will automatically load the
 values from `data/product_results.csv` created by `product_discovery.py`. The
-script fetches pricing, rating, review count, and best seller rank using
-SerpAPI, assigns a simple score (HIGH/MEDIUM/LOW) based on rating and review
-count, then saves the results to `data/market_analysis_results.csv`.
+The script fetches pricing, rating, review count, and best seller rank. It uses
+SerpAPI as the primary source and falls back to Keepa when necessary. You can
+disable keyword-based fallback searches with the `--no-fallback` flag. Results
+are saved to `data/market_analysis_results.csv`.
 
 ```bash
 python market_analysis.py
