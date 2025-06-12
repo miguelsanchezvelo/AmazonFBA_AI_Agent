@@ -228,19 +228,25 @@ def load_manual_csv(path: str) -> List[Dict[str, object]]:
     with open(path, newline="", encoding="utf-8") as f:
         reader = csv.DictReader(f)
         for row in reader:
-            products.append(
-                {
-                    "asin": (row.get("asin") or "").strip(),
-                    "title": row.get("title") or "",
-                    "price": parse_float(str(row.get("price"))),
-                    "rating": parse_float(str(row.get("rating"))),
-                    "reviews": parse_float(str(row.get("reviews"))),
-                    "bsr": row.get("bsr"),
-                    "link": row.get("link") or "",
-                    "source": "manual",
-                    "estimated": True,
-                }
-            )
+            asin = (row.get("asin") or "").strip()
+            if asin and not is_valid_asin(asin):
+                # Ignore invalid ASINs in mock data
+                continue
+            product = {
+                "asin": asin,
+                "title": row.get("title") or "",
+                "price": parse_float(str(row.get("price"))),
+                "rating": parse_float(str(row.get("rating"))),
+                "reviews": parse_float(str(row.get("reviews"))),
+                "bsr": row.get("bsr"),
+                "link": row.get("link") or "",
+                "source": row.get("source") or "manual",
+                "estimated": True,
+            }
+            score = parse_float(str(row.get("score")))
+            if score is not None:
+                product["score"] = score
+            products.append(product)
     return products
 
 
@@ -335,6 +341,16 @@ def print_report(products: List[Dict[str, object]]):
         )
 
 
+def process_products(products: List[Dict[str, object]]):
+    """Evaluate potential, print a report and save the results."""
+    if not products:
+        return
+    for p in products:
+        p["potential"] = evaluate_potential(p)
+    print_report(products)
+    save_to_csv(products)
+
+
 def analyze(asins: List[str], use_serp: bool, use_keepa: bool, fallback: bool) -> List[Dict[str, object]]:
     results: List[Dict[str, object]] = []
     for asin in asins:
@@ -386,19 +402,15 @@ def main():
         print(
             "Operating in partial mode - missing " + ", ".join(missing)
         )
-    else:
-        print("No API keys detected. Entering MANUAL MODE using mock_market_data.csv")
 
     if mode == "MANUAL":
         csv_path = args.csv or MOCK_DATA_CSV
         products = load_manual_csv(csv_path)
         if not products:
-            print("No valid data found in mock_market_data.csv. Exiting.")
+            print("❌ Mock data file not found or empty. Exiting.")
             return
-        for p in products:
-            p["potential"] = evaluate_potential(p)
-        print_report(products)
-        save_to_csv(products)
+        print("⚠️ No API keys found or no data collected. Entering mock data mode using 'data/mock_market_data.csv'")
+        process_products(products)
         print(f"{len(products)} products loaded from {csv_path}")
         print("Manual analysis complete. Results saved to data/market_analysis_results.csv")
         return
@@ -419,11 +431,16 @@ def main():
 
     products = analyze(asins, serp_available, keepa_available, not args.no_fallback)
     if not products:
-        print("No data collected")
+        print("⚠️ No API keys found or no data collected. Entering mock data mode using 'data/mock_market_data.csv'")
+        products = load_manual_csv(MOCK_DATA_CSV)
+        if not products:
+            print("❌ Mock data file not found or empty. Exiting.")
+            return
+        process_products(products)
+        print("Manual analysis complete. Results saved to data/market_analysis_results.csv")
         return
 
-    print_report(products)
-    save_to_csv(products)
+    process_products(products)
     print(f"Saved {len(products)} products to {DATA_PATH}")
 
 
