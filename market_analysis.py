@@ -3,15 +3,42 @@ import csv
 import re
 import argparse
 import time
+import json
 from typing import List, Dict, Optional, Tuple
 
 from dotenv import load_dotenv
 from serpapi import GoogleSearch
+import requests
 
 load_dotenv()
-API_KEY = os.getenv("SERPAPI_API_KEY")
-if not API_KEY:
-    raise EnvironmentError("SERPAPI_API_KEY not set in environment")
+
+CONFIG_PATH = "config.json"
+
+
+def load_api_keys() -> Tuple[str, str]:
+    serpapi_key = None
+    keepa_key = None
+    if os.path.exists(CONFIG_PATH):
+        try:
+            with open(CONFIG_PATH, "r", encoding="utf-8") as f:
+                cfg = json.load(f)
+                serpapi_key = cfg.get("serpapi_key")
+                keepa_key = cfg.get("keepa_key")
+        except Exception as exc:
+            print(f"Error reading {CONFIG_PATH}: {exc}")
+
+    serpapi_key = serpapi_key or os.getenv("SERPAPI_API_KEY")
+    keepa_key = keepa_key or os.getenv("KEEPA_API_KEY")
+
+    if not serpapi_key:
+        serpapi_key = input("Enter your SerpAPI key: ").strip()
+    if not keepa_key:
+        keepa_key = input("Enter your Keepa API key: ").strip()
+
+    return serpapi_key, keepa_key
+
+
+SERPAPI_KEY, KEEPA_KEY = load_api_keys()
 
 DATA_PATH = os.path.join("data", "market_analysis_results.csv")
 # Default CSV produced by product_discovery.py
@@ -50,7 +77,7 @@ def fetch_product_info(asin: str) -> Optional[Dict[str, str]]:
     """Fetch product information from SerpAPI for a single ASIN."""
     params = {
         "engine": "amazon",
-        "api_key": API_KEY,
+        "api_key": SERPAPI_KEY,
         "amazon_domain": "amazon.com",
         "type": "product",
         "asin": asin,
@@ -98,7 +125,7 @@ def fetch_product_by_title(title: str) -> Optional[Dict[str, str]]:
     """Search Amazon by title and return info from the most relevant result."""
     params = {
         "engine": "amazon",
-        "api_key": API_KEY,
+        "api_key": SERPAPI_KEY,
         "amazon_domain": "amazon.com",
         "type": "search",
         "search_term": title,
@@ -161,6 +188,48 @@ def fetch_product_by_title(title: str) -> Optional[Dict[str, str]]:
     }
 
 
+def get_product_data_serpapi(asin: Optional[str] = None, title: Optional[str] = None) -> Optional[Dict[str, object]]:
+    """Try retrieving product info using SerpAPI by ASIN then title."""
+    data = None
+    estimated = False
+    if asin and is_valid_asin(asin):
+        data = fetch_product_info(asin)
+    if not data and title:
+        data = fetch_product_by_title(title)
+        estimated = True if data else False
+    if data:
+        data["estimated"] = estimated
+        data["source"] = "serpapi"
+    return data
+
+
+def get_product_data_keepa(asin: Optional[str] = None, keywords: Optional[str] = None, keepa_key: Optional[str] = None) -> Optional[Dict[str, object]]:
+    """Retrieve product info from Keepa either by ASIN or search keywords."""
+    if not keepa_key:
+        return None
+    base = "https://api.keepa.com"
+    params = {"key": keepa_key, "domain": "US"}
+    if asin:
+        try:
+            resp = requests.get(f"{base}/product", params={**params, "asin": asin})
+            if resp.status_code == 200:
+                data = resp.json()
+                if data.get("products"):
+                    return {"source": "keepa", "estimated": False, "raw": data}
+        except Exception as exc:
+            print(f"Keepa ASIN error for {asin}: {exc}")
+    if keywords:
+        try:
+            resp = requests.get(f"{base}/search", params={**params, "term": keywords})
+            if resp.status_code == 200:
+                data = resp.json()
+                if data.get("products"):
+                    return {"source": "keepa", "estimated": True, "raw": data}
+        except Exception as exc:
+            print(f"Keepa search error for '{keywords}': {exc}")
+    return None
+
+
 def process_products(products: List[Dict[str, str]], verbose: bool = False) -> Tuple[List[Dict[str, str]], Dict[str, int]]:
     """Process a list of entries with asin/estimated_asin/title."""
     results = []
@@ -183,18 +252,24 @@ def process_products(products: List[Dict[str, str]], verbose: bool = False) -> T
             chosen = est_asin
 
         data = None
-        if chosen:
-            data = fetch_product_info(chosen)
+        if chosen or title:
+            data = get_product_data_serpapi(asin=chosen, title=title)
             if data:
-                data["estimated"] = chosen != asin
-                stats["analyzed"] += 1
-        if not data and title:
-            if verbose:
-                print(f"Fallback search for '{title}'")
-            data = fetch_product_by_title(title)
+                if chosen and chosen != asin:
+                    data["estimated"] = True
+                if data.get("source") == "serpapi" and not data.get("estimated"):
+                    stats["analyzed"] += 1
+                elif data.get("source") == "serpapi" and data.get("estimated"):
+                    stats["fallback_success"] += 1
+        if not data:
+            data = get_product_data_keepa(asin=chosen, keywords=title, keepa_key=KEEPA_KEY)
             if data:
-                data["estimated"] = True
-                stats["fallback_success"] += 1
+                if chosen and chosen != asin:
+                    data["estimated"] = True
+                if data.get("estimated"):
+                    stats["fallback_success"] += 1
+                else:
+                    stats["analyzed"] += 1
 
         if not data:
             if not (asin or est_asin):
@@ -280,6 +355,7 @@ def save_to_csv(products: List[Dict[str, str]]):
                 "reviews",
                 "bsr",
                 "link",
+                "source",
                 "score",
                 "estimated",
             ],
@@ -296,7 +372,8 @@ def print_report(products: List[Dict[str, str]]):
         print(f"Price: {p.get('price')}")
         print(f"Rating: {p.get('rating')} ({p.get('reviews')} reviews)")
         print(f"BSR: {p.get('bsr')}")
-        print(f"Score: {p.get('score')} (estimated: {p.get('estimated')})")
+        print(f"Source: {p.get('source')} | Estimated: {p.get('estimated')}")
+        print(f"Score: {p.get('score')}")
         print(f"Link: {p.get('link')}\n")
 
 
