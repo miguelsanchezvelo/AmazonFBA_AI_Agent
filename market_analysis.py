@@ -14,31 +14,37 @@ load_dotenv()
 
 CONFIG_PATH = "config.json"
 
+SERPAPI_KEY: Optional[str] = None
+KEEPA_KEY: Optional[str] = None
 
-def load_api_keys() -> Tuple[str, str]:
-    serpapi_key = None
-    keepa_key = None
+
+def load_keys() -> Tuple[str, str]:
+    """Return SerpAPI and Keepa API keys from env, config or user input."""
+    global SERPAPI_KEY, KEEPA_KEY
+
+    if SERPAPI_KEY and KEEPA_KEY:
+        return SERPAPI_KEY, KEEPA_KEY
+
+    config: Dict[str, str] = {}
     if os.path.exists(CONFIG_PATH):
         try:
             with open(CONFIG_PATH, "r", encoding="utf-8") as f:
-                cfg = json.load(f)
-                serpapi_key = cfg.get("serpapi_key")
-                keepa_key = cfg.get("keepa_key")
+                config = json.load(f)
         except Exception as exc:
-            print(f"Error reading {CONFIG_PATH}: {exc}")
+            print(f"Warning: could not read {CONFIG_PATH}: {exc}")
 
-    serpapi_key = serpapi_key or os.getenv("SERPAPI_API_KEY")
-    keepa_key = keepa_key or os.getenv("KEEPA_API_KEY")
+    SERPAPI_KEY = os.getenv("SERPAPI_API_KEY") or config.get("serpapi_key")
+    if not SERPAPI_KEY:
+        SERPAPI_KEY = input("Enter your SerpAPI key: ").strip()
 
-    if not serpapi_key:
-        serpapi_key = input("Enter your SerpAPI key: ").strip()
-    if not keepa_key:
-        keepa_key = input("Enter your Keepa API key: ").strip()
+    KEEPA_KEY = os.getenv("KEEPA_API_KEY") or config.get("keepa_key")
+    if not KEEPA_KEY:
+        KEEPA_KEY = input("Enter your Keepa API key: ").strip()
 
-    return serpapi_key, keepa_key
+    return SERPAPI_KEY, KEEPA_KEY
 
 
-SERPAPI_KEY, KEEPA_KEY = load_api_keys()
+SERPAPI_KEY, KEEPA_KEY = load_keys()
 
 DATA_PATH = os.path.join("data", "market_analysis_results.csv")
 # Default CSV produced by product_discovery.py
@@ -203,36 +209,71 @@ def get_product_data_serpapi(asin: Optional[str] = None, title: Optional[str] = 
     return data
 
 
-def get_product_data_keepa(asin: Optional[str] = None, keywords: Optional[str] = None, keepa_key: Optional[str] = None) -> Optional[Dict[str, object]]:
-    """Retrieve product info from Keepa either by ASIN or search keywords."""
-    if not keepa_key:
-        return None
-    base = "https://api.keepa.com"
-    params = {"key": keepa_key, "domain": "US"}
+def get_product_data_keepa(
+    asin: Optional[str] = None, keywords: Optional[str] = None
+) -> Optional[Dict[str, str]]:
+    """Return product data from Keepa by ASIN or search keywords."""
+    _, keepa_key = load_keys()
+
     if asin:
-        try:
-            resp = requests.get(f"{base}/product", params={**params, "asin": asin})
-            if resp.status_code == 200:
-                data = resp.json()
-                if data.get("products"):
-                    return {"source": "keepa", "estimated": False, "raw": data}
-        except Exception as exc:
-            print(f"Keepa ASIN error for {asin}: {exc}")
-    if keywords:
-        try:
-            resp = requests.get(f"{base}/search", params={**params, "term": keywords})
-            if resp.status_code == 200:
-                data = resp.json()
-                if data.get("products"):
-                    return {"source": "keepa", "estimated": True, "raw": data}
-        except Exception as exc:
-            print(f"Keepa search error for '{keywords}': {exc}")
-    return None
+        url = f"https://api.keepa.com/product?key={keepa_key}&domain=1&asin={asin}"
+    elif keywords:
+        term = requests.utils.quote(keywords)
+        url = f"https://api.keepa.com/search?key={keepa_key}&domain=1&term={term}"
+    else:
+        return None
+
+    try:
+        resp = requests.get(url, timeout=20)
+        data = resp.json()
+    except Exception as exc:
+        print(f"Error calling Keepa: {exc}")
+        return None
+
+    if data.get("error") or data.get("tokensLeft") == 0:
+        msg = data.get("error", "API limit reached")
+        print(f"Keepa error: {msg}")
+        return None
+
+    if asin:
+        products = data.get("products") or []
+    else:
+        products = data.get("products") or []
+        if products:
+            asin = products[0].get("asin")
+
+    if not products:
+        return None
+
+    item = products[0]
+    title = item.get("title")
+    price = parse_float(str(item.get("buyBoxSellerPrice") or item.get("buyBoxPrice")))
+    rating = parse_float(str(item.get("rating")))
+    reviews = parse_float(str(item.get("reviewCount")))
+    bsr = item.get("salesRank")
+    link = f"https://www.amazon.com/dp/{asin}" if asin else None
+
+    return {
+        "asin": asin,
+        "title": title,
+        "price": price,
+        "rating": rating,
+        "reviews": reviews,
+        "bsr": bsr,
+        "link": link,
+        "source": "keepa",
+        "estimated": keywords is not None and not asin,
+    }
 
 
-def process_products(products: List[Dict[str, str]], verbose: bool = False) -> Tuple[List[Dict[str, str]], Dict[str, int]]:
-    """Process a list of entries with asin/estimated_asin/title."""
-    results = []
+def process_products(
+    products: List[Dict[str, str]],
+    verbose: bool = False,
+    no_fallback: bool = False,
+) -> Tuple[List[Dict[str, str]], Dict[str, int]]:
+    """Process products using SerpAPI with Keepa fallback."""
+
+    results: List[Dict[str, str]] = []
     stats = {
         "analyzed": 0,
         "fallback_success": 0,
@@ -251,25 +292,47 @@ def process_products(products: List[Dict[str, str]], verbose: bool = False) -> T
         elif is_valid_asin(est_asin):
             chosen = est_asin
 
-        data = None
-        if chosen or title:
-            data = get_product_data_serpapi(asin=chosen, title=title)
+        data: Optional[Dict[str, str]] = None
+        estimated = False
+        source = ""
+
+        # Step 1: SerpAPI by ASIN
+        if chosen:
+            data = get_product_data_serpapi(asin=chosen)
             if data:
-                if chosen and chosen != asin:
-                    data["estimated"] = True
-                if data.get("source") == "serpapi" and not data.get("estimated"):
-                    stats["analyzed"] += 1
-                elif data.get("source") == "serpapi" and data.get("estimated"):
-                    stats["fallback_success"] += 1
-        if not data:
-            data = get_product_data_keepa(asin=chosen, keywords=title, keepa_key=KEEPA_KEY)
+                estimated = chosen != asin
+                source = "serpapi"
+                stats["analyzed"] += 1
+
+        # Step 2: SerpAPI by title
+        if not data and title:
+            if verbose:
+                print(f"SerpAPI search for '{title}'")
+            data = get_product_data_serpapi(title=title)
             if data:
-                if chosen and chosen != asin:
-                    data["estimated"] = True
-                if data.get("estimated"):
-                    stats["fallback_success"] += 1
-                else:
-                    stats["analyzed"] += 1
+                estimated = True
+                source = "serpapi"
+                stats["fallback_success"] += 1
+
+        # Step 3: Keepa by ASIN
+        if not data and chosen:
+            if verbose:
+                print(f"Keepa lookup for ASIN {chosen}")
+            data = get_product_data_keepa(asin=chosen)
+            if data:
+                estimated = chosen != asin
+                source = "keepa"
+                stats["fallback_success"] += 1
+
+        # Step 4: Keepa by keywords
+        if not data and title and not no_fallback:
+            if verbose:
+                print(f"Keepa keyword search for '{title}'")
+            data = get_product_data_keepa(keywords=title)
+            if data:
+                estimated = True
+                source = "keepa"
+                stats["fallback_success"] += 1
 
         if not data:
             if not (asin or est_asin):
@@ -277,9 +340,21 @@ def process_products(products: List[Dict[str, str]], verbose: bool = False) -> T
             else:
                 stats["skipped_no_data"] += 1
             if verbose:
-                print(f"Skipped entry ASIN='{asin}' EST='{est_asin}' Title='{title[:40]}'")
+                print(
+                    f"Skipped entry ASIN='{asin}' EST='{est_asin}' Title='{title[:40]}'"
+                )
             continue
 
+        # basic filtering
+        if not data.get("price") or not data.get("title"):
+            stats["skipped_no_data"] += 1
+            continue
+        if any(k in data["title"].lower() for k in ["book", "dvd", "gift card"]):
+            stats["skipped_invalid"] += 1
+            continue
+
+        data["estimated"] = estimated
+        data["source"] = source
         data["score"] = evaluate_potential(data)
         results.append(data)
         time.sleep(1)
@@ -381,6 +456,11 @@ def main():
     parser = argparse.ArgumentParser(description="Analyze Amazon ASINs")
     parser.add_argument("--csv", help="optional CSV file with asin column")
     parser.add_argument("--verbose", action="store_true", help="print verbose logs")
+    parser.add_argument(
+        "--no-fallback",
+        action="store_true",
+        help="disable keyword estimation for fallback lookups",
+    )
     args = parser.parse_args()
 
     if args.csv:
@@ -416,7 +496,9 @@ def main():
     if not entries:
         print("No products provided")
         return
-    products, stats = process_products(entries, verbose=args.verbose)
+    products, stats = process_products(
+        entries, verbose=args.verbose, no_fallback=args.no_fallback
+    )
     if not products:
         print("No product data retrieved")
         return
