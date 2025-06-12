@@ -26,9 +26,12 @@ def parse_float(value: str) -> Optional[float]:
     return float(match.group()) if match else None
 
 
+ASIN_PATTERN = r"^B0[A-Z0-9]{8}$"
+
+
 def is_valid_asin(asin: str) -> bool:
-    """Return True if the string looks like a valid 10-character ASIN."""
-    return bool(re.fullmatch(r"[A-Z0-9]{10}", asin.upper()))
+    """Return True if asin matches Amazon's B0-prefixed pattern."""
+    return bool(re.fullmatch(ASIN_PATTERN, (asin or "").upper()))
 
 
 def evaluate_potential(product: Dict[str, Optional[float]]) -> str:
@@ -158,36 +161,55 @@ def fetch_product_by_title(title: str) -> Optional[Dict[str, str]]:
     }
 
 
-def process_products(products: List[Dict[str, str]]) -> Tuple[List[Dict[str, str]], int, int, int]:
-    """Process a list of entries containing asin and optional title."""
+def process_products(products: List[Dict[str, str]], verbose: bool = False) -> Tuple[List[Dict[str, str]], Dict[str, int]]:
+    """Process a list of entries with asin/estimated_asin/title."""
     results = []
-    real = estimated = failed = 0
+    stats = {
+        "analyzed": 0,
+        "fallback_success": 0,
+        "skipped_invalid": 0,
+        "skipped_no_data": 0,
+    }
+
     for item in products:
         asin = (item.get("asin") or "").strip()
+        est_asin = (item.get("estimated_asin") or "").strip()
         title = (item.get("title") or "").strip()
 
-        data = None
+        chosen = None
         if is_valid_asin(asin):
-            data = fetch_product_info(asin)
+            chosen = asin
+        elif is_valid_asin(est_asin):
+            chosen = est_asin
+
+        data = None
+        if chosen:
+            data = fetch_product_info(chosen)
             if data:
-                data["estimated"] = False
-                real += 1
+                data["estimated"] = chosen != asin
+                stats["analyzed"] += 1
         if not data and title:
+            if verbose:
+                print(f"Fallback search for '{title}'")
             data = fetch_product_by_title(title)
             if data:
                 data["estimated"] = True
-                estimated += 1
+                stats["fallback_success"] += 1
 
         if not data:
-            print(f"Failed to fetch data for entry: ASIN='{asin}' Title='{title[:40]}'")
-            failed += 1
+            if not (asin or est_asin):
+                stats["skipped_invalid"] += 1
+            else:
+                stats["skipped_no_data"] += 1
+            if verbose:
+                print(f"Skipped entry ASIN='{asin}' EST='{est_asin}' Title='{title[:40]}'")
             continue
 
         data["score"] = evaluate_potential(data)
         results.append(data)
-        time.sleep(1)  # small delay for rate limits
+        time.sleep(1)
 
-    return results, real, estimated, failed
+    return results, stats
 
 
 def load_asins_from_csv(path: str) -> List[str]:
@@ -220,18 +242,22 @@ def load_asins_from_csv(path: str) -> List[str]:
 
 
 def load_products_from_csv(path: str) -> List[Dict[str, str]]:
-    """Return list of entries with asin and title from a CSV file."""
+    """Return list of entries with asin, estimated_asin and title from a CSV file."""
     products = []
     try:
         with open(path, newline="", encoding="utf-8") as f:
             reader = csv.DictReader(f)
-            if "asin" not in reader.fieldnames:
-                print(f"CSV {path} is missing an 'asin' column")
+            if "asin" not in reader.fieldnames or "title" not in reader.fieldnames:
+                print(f"CSV {path} is missing required columns")
                 return []
             for row in reader:
-                asin = (row.get("asin") or "").strip()
-                title = (row.get("title") or "").strip()
-                products.append({"asin": asin, "title": title})
+                products.append(
+                    {
+                        "asin": (row.get("asin") or "").strip(),
+                        "estimated_asin": (row.get("estimated_asin") or "").strip(),
+                        "title": (row.get("title") or "").strip(),
+                    }
+                )
     except FileNotFoundError:
         print(f"File not found: {path}")
         return []
@@ -277,6 +303,7 @@ def print_report(products: List[Dict[str, str]]):
 def main():
     parser = argparse.ArgumentParser(description="Analyze Amazon ASINs")
     parser.add_argument("--csv", help="optional CSV file with asin column")
+    parser.add_argument("--verbose", action="store_true", help="print verbose logs")
     args = parser.parse_args()
 
     if args.csv:
@@ -298,13 +325,13 @@ def main():
                 return
             if len(valid) < len(entered):
                 print(f"Skipped {len(entered) - len(valid)} invalid ASIN(s)")
-            entries = [{"asin": a, "title": ""} for a in valid]
+            entries = [{"asin": a, "estimated_asin": "", "title": ""} for a in valid]
         else:
             entries = load_products_from_csv(DISCOVERY_CSV)
             if not entries:
                 print(
                     f"Could not load products from {DISCOVERY_CSV}. "
-                    "Ensure the file exists and has 'asin' and 'title' columns."
+                    "Ensure the file exists and has 'asin', 'title', and optional 'estimated_asin' columns."
                 )
                 return
             print(f"Loaded {len(entries)} products from {DISCOVERY_CSV}")
@@ -312,7 +339,7 @@ def main():
     if not entries:
         print("No products provided")
         return
-    products, real, estimated, failed = process_products(entries)
+    products, stats = process_products(entries, verbose=args.verbose)
     if not products:
         print("No product data retrieved")
         return
@@ -320,7 +347,8 @@ def main():
     save_to_csv(products)
     print(f"Saved {len(products)} results to {DATA_PATH}")
     print(
-        f"Analyzed with ASIN data: {real} | Estimated by title: {estimated} | Failed: {failed}"
+        f"Analyzed: {stats['analyzed']} | Fallback success: {stats['fallback_success']} | "
+        f"Skipped invalid: {stats['skipped_invalid']} | Skipped no data: {stats['skipped_no_data']}"
     )
 
 
