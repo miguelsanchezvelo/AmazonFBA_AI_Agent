@@ -3,15 +3,42 @@ import csv
 import re
 import argparse
 import time
+import json
 from typing import List, Dict, Optional, Tuple
 
+import requests
 from dotenv import load_dotenv
 from serpapi import GoogleSearch
 
-load_dotenv()
-API_KEY = os.getenv("SERPAPI_API_KEY")
-if not API_KEY:
-    raise EnvironmentError("SERPAPI_API_KEY not set in environment")
+SERPAPI_KEY: Optional[str] = None
+KEEPA_KEY: Optional[str] = None
+
+
+def load_keys() -> Tuple[str, str]:
+    """Return SerpAPI and Keepa API keys using env, config.json or user input."""
+    global SERPAPI_KEY, KEEPA_KEY
+
+    if SERPAPI_KEY and KEEPA_KEY:
+        return SERPAPI_KEY, KEEPA_KEY
+
+    load_dotenv()
+    config: Dict[str, str] = {}
+    if os.path.exists("config.json"):
+        try:
+            with open("config.json", "r", encoding="utf-8") as f:
+                config = json.load(f)
+        except Exception as exc:
+            print(f"Warning: could not read config.json: {exc}")
+
+    SERPAPI_KEY = os.getenv("SERPAPI_API_KEY") or config.get("serpapi_key")
+    if not SERPAPI_KEY:
+        raise EnvironmentError("SERPAPI_API_KEY not set in environment or config")
+
+    KEEPA_KEY = os.getenv("KEEPA_API_KEY") or config.get("keepa_key")
+    if not KEEPA_KEY:
+        KEEPA_KEY = input("Enter Keepa API key: ").strip()
+
+    return SERPAPI_KEY, KEEPA_KEY
 
 DATA_PATH = os.path.join("data", "market_analysis_results.csv")
 # Default CSV produced by product_discovery.py
@@ -46,42 +73,162 @@ def evaluate_potential(product: Dict[str, Optional[float]]) -> str:
     return "LOW"
 
 
-def fetch_product_info(asin: str) -> Optional[Dict[str, str]]:
-    """Fetch product information from SerpAPI for a single ASIN."""
-    params = {
-        "engine": "amazon",
-        "api_key": API_KEY,
-        "amazon_domain": "amazon.com",
-        "type": "product",
-        "asin": asin,
-    }
+def get_product_data_serpapi(asin: Optional[str] = None, title: Optional[str] = None) -> Optional[Dict[str, str]]:
+    """Return product data from SerpAPI by ASIN or search term."""
+    serp_key, _ = load_keys()
+
+    if asin:
+        params = {
+            "engine": "amazon",
+            "api_key": serp_key,
+            "amazon_domain": "amazon.com",
+            "type": "product",
+            "asin": asin,
+        }
+        try:
+            search = GoogleSearch(params)
+            result = search.get_dict()
+        except Exception as exc:
+            print(f"Error fetching {asin} via SerpAPI: {exc}")
+            return None
+
+        product = result.get("product_results") or {}
+        if not product:
+            return None
+
+        title = product.get("title")
+        price_raw = product.get("price", {}).get("raw") if isinstance(product.get("price"), dict) else product.get("price")
+        price = parse_float(price_raw)
+        rating = parse_float(str(product.get("rating")))
+        reviews = parse_float(str(product.get("reviews")))
+        link = product.get("url") or product.get("link")
+
+        bsr = None
+        info = result.get("product_information", [])
+        for item in info:
+            if "Best Sellers Rank" in item.get("title", ""):
+                bsr = item.get("value")
+                break
+        if not bsr:
+            bsr = product.get("best_sellers_rank")
+
+        return {
+            "asin": asin,
+            "title": title,
+            "price": price,
+            "rating": rating,
+            "reviews": reviews,
+            "bsr": bsr,
+            "link": link,
+        }
+
+    if title:
+        params = {
+            "engine": "amazon",
+            "api_key": serp_key,
+            "amazon_domain": "amazon.com",
+            "type": "search",
+            "search_term": title,
+        }
+        try:
+            search = GoogleSearch(params)
+            result = search.get_dict()
+        except Exception as exc:
+            print(f"Error searching '{title}' via SerpAPI: {exc}")
+            return None
+
+        items = result.get("organic_results", []) or []
+        if not items:
+            return None
+
+        best = None
+        best_score = -1.0
+        for item in items:
+            if item.get("position") == 1:
+                best = item
+                break
+            rating = parse_float(str(item.get("rating"))) or 0
+            reviews = parse_float(str(item.get("reviews"))) or 0
+            score = rating * reviews
+            if score > best_score:
+                best_score = score
+                best = item
+
+        if not best:
+            return None
+
+        asin = best.get("asin")
+        link = best.get("link") or best.get("url")
+        if not asin and link:
+            m = re.search(r"/dp/([A-Z0-9]{10})", link)
+            asin = m.group(1) if m else None
+
+        price = parse_float(
+            best.get("price", {}).get("raw") if isinstance(best.get("price"), dict) else best.get("price")
+        )
+        rating = parse_float(str(best.get("rating")))
+        reviews = parse_float(str(best.get("reviews")))
+
+        bsr = None
+        if asin and is_valid_asin(asin):
+            detail = get_product_data_serpapi(asin=asin)
+            if detail:
+                bsr = detail.get("bsr")
+
+        return {
+            "asin": asin,
+            "title": best.get("title"),
+            "price": price,
+            "rating": rating,
+            "reviews": reviews,
+            "bsr": bsr,
+            "link": link,
+        }
+
+    return None
+
+
+def get_product_data_keepa(asin: Optional[str] = None, keywords: Optional[str] = None) -> Optional[Dict[str, str]]:
+    """Return product data from Keepa by ASIN or keywords."""
+    _, keepa_key = load_keys()
+
+    if asin:
+        url = f"https://api.keepa.com/product?key={keepa_key}&domain=1&asin={asin}"
+    elif keywords:
+        term = requests.utils.quote(keywords)
+        url = f"https://api.keepa.com/search?key={keepa_key}&domain=1&term={term}"
+    else:
+        return None
+
     try:
-        search = GoogleSearch(params)
-        result = search.get_dict()
+        resp = requests.get(url, timeout=20)
+        data = resp.json()
     except Exception as exc:
-        print(f"Error fetching {asin}: {exc}")
+        print(f"Error calling Keepa: {exc}")
         return None
 
-    product = result.get("product_results") or {}
-    if not product:
-        print(f"No data for ASIN {asin}")
+    if data.get("error") or data.get("tokensLeft") == 0:
+        msg = data.get("error","API limit reached")
+        print(f"Keepa error: {msg}")
         return None
 
-    title = product.get("title")
-    price_raw = product.get("price", {}).get("raw") if isinstance(product.get("price"), dict) else product.get("price")
-    price = parse_float(price_raw)
-    rating = parse_float(str(product.get("rating")))
-    reviews = parse_float(str(product.get("reviews")))
-    link = product.get("url") or product.get("link")
+    if asin:
+        products = data.get("products") or []
+    else:
+        products = data.get("products") or []
+        if products:
+            asin = products[0].get("asin")
 
-    bsr = None
-    info = result.get("product_information", [])
-    for item in info:
-        if "Best Sellers Rank" in item.get("title", ""):
-            bsr = item.get("value")
-            break
-    if not bsr:
-        bsr = product.get("best_sellers_rank")
+    if not products:
+        return None
+
+    item = products[0]
+    title = item.get("title")
+    price = parse_float(str(item.get("buyBoxSellerPrice") or item.get("buyBoxPrice")))
+    rating = parse_float(str(item.get("rating")))
+    reviews = parse_float(str(item.get("reviewCount")))
+    bsr = item.get("salesRank")
+    link = f"https://www.amazon.com/dp/{asin}" if asin else None
 
     return {
         "asin": asin,
@@ -94,76 +241,14 @@ def fetch_product_info(asin: str) -> Optional[Dict[str, str]]:
     }
 
 
-def fetch_product_by_title(title: str) -> Optional[Dict[str, str]]:
-    """Search Amazon by title and return info from the most relevant result."""
-    params = {
-        "engine": "amazon",
-        "api_key": API_KEY,
-        "amazon_domain": "amazon.com",
-        "type": "search",
-        "search_term": title,
-    }
-    try:
-        search = GoogleSearch(params)
-        result = search.get_dict()
-    except Exception as exc:
-        print(f"Error searching for '{title}': {exc}")
-        return None
+def process_products(
+    products: List[Dict[str, str]],
+    verbose: bool = False,
+    no_fallback: bool = False,
+) -> Tuple[List[Dict[str, str]], Dict[str, int]]:
+    """Process products using SerpAPI with Keepa fallback."""
 
-    items = result.get("organic_results", []) or []
-    if not items:
-        print(f"No search results for '{title}'")
-        return None
-
-    # Pick item with position==1, otherwise highest rating * reviews
-    best = None
-    best_score = -1.0
-    for item in items:
-        if item.get("position") == 1:
-            best = item
-            break
-        rating = parse_float(str(item.get("rating"))) or 0
-        reviews = parse_float(str(item.get("reviews"))) or 0
-        score = rating * reviews
-        if score > best_score:
-            best_score = score
-            best = item
-
-    if not best:
-        return None
-
-    asin = best.get("asin")
-    link = best.get("link") or best.get("url")
-    if not asin and link:
-        m = re.search(r"/dp/([A-Z0-9]{10})", link)
-        asin = m.group(1) if m else None
-
-    price = parse_float(
-        best.get("price", {}).get("raw") if isinstance(best.get("price"), dict) else best.get("price")
-    )
-    rating = parse_float(str(best.get("rating")))
-    reviews = parse_float(str(best.get("reviews")))
-
-    bsr = None
-    if asin and is_valid_asin(asin):
-        detail = fetch_product_info(asin)
-        if detail:
-            bsr = detail.get("bsr")
-
-    return {
-        "asin": asin,
-        "title": best.get("title"),
-        "price": price,
-        "rating": rating,
-        "reviews": reviews,
-        "bsr": bsr,
-        "link": link,
-    }
-
-
-def process_products(products: List[Dict[str, str]], verbose: bool = False) -> Tuple[List[Dict[str, str]], Dict[str, int]]:
-    """Process a list of entries with asin/estimated_asin/title."""
-    results = []
+    results: List[Dict[str, str]] = []
     stats = {
         "analyzed": 0,
         "fallback_success": 0,
@@ -182,18 +267,46 @@ def process_products(products: List[Dict[str, str]], verbose: bool = False) -> T
         elif is_valid_asin(est_asin):
             chosen = est_asin
 
-        data = None
+        data: Optional[Dict[str, str]] = None
+        estimated = False
+        source = ""
+
+        # Step 1: SerpAPI by ASIN
         if chosen:
-            data = fetch_product_info(chosen)
+            data = get_product_data_serpapi(asin=chosen)
             if data:
-                data["estimated"] = chosen != asin
+                estimated = chosen != asin
+                source = "serpapi"
                 stats["analyzed"] += 1
+
+        # Step 2: SerpAPI by title
         if not data and title:
             if verbose:
-                print(f"Fallback search for '{title}'")
-            data = fetch_product_by_title(title)
+                print(f"SerpAPI search for '{title}'")
+            data = get_product_data_serpapi(title=title)
             if data:
-                data["estimated"] = True
+                estimated = True
+                source = "serpapi"
+                stats["fallback_success"] += 1
+
+        # Step 3: Keepa by ASIN
+        if not data and chosen:
+            if verbose:
+                print(f"Keepa lookup for ASIN {chosen}")
+            data = get_product_data_keepa(asin=chosen)
+            if data:
+                estimated = chosen != asin
+                source = "keepa"
+                stats["fallback_success"] += 1
+
+        # Step 4: Keepa by keywords
+        if not data and title and not no_fallback:
+            if verbose:
+                print(f"Keepa keyword search for '{title}'")
+            data = get_product_data_keepa(keywords=title)
+            if data:
+                estimated = True
+                source = "keepa"
                 stats["fallback_success"] += 1
 
         if not data:
@@ -202,11 +315,24 @@ def process_products(products: List[Dict[str, str]], verbose: bool = False) -> T
             else:
                 stats["skipped_no_data"] += 1
             if verbose:
-                print(f"Skipped entry ASIN='{asin}' EST='{est_asin}' Title='{title[:40]}'")
+                print(
+                    f"Skipped entry ASIN='{asin}' EST='{est_asin}' Title='{title[:40]}'"
+                )
             continue
 
+        # basic filtering
+        if not data.get("price") or not data.get("title"):
+            stats["skipped_no_data"] += 1
+            continue
+        if any(k in data["title"].lower() for k in ["book", "dvd", "gift card"]):
+            stats["skipped_invalid"] += 1
+            continue
+
+        data["estimated"] = estimated
+        data["source"] = source
         data["score"] = evaluate_potential(data)
         results.append(data)
+
         time.sleep(1)
 
     return results, stats
@@ -282,6 +408,7 @@ def save_to_csv(products: List[Dict[str, str]]):
                 "link",
                 "score",
                 "estimated",
+                "source",
             ],
         )
         writer.writeheader()
@@ -296,7 +423,9 @@ def print_report(products: List[Dict[str, str]]):
         print(f"Price: {p.get('price')}")
         print(f"Rating: {p.get('rating')} ({p.get('reviews')} reviews)")
         print(f"BSR: {p.get('bsr')}")
-        print(f"Score: {p.get('score')} (estimated: {p.get('estimated')})")
+        print(
+            f"Score: {p.get('score')} (estimated: {p.get('estimated')}, source: {p.get('source')})"
+        )
         print(f"Link: {p.get('link')}\n")
 
 
@@ -304,6 +433,11 @@ def main():
     parser = argparse.ArgumentParser(description="Analyze Amazon ASINs")
     parser.add_argument("--csv", help="optional CSV file with asin column")
     parser.add_argument("--verbose", action="store_true", help="print verbose logs")
+    parser.add_argument(
+        "--no-fallback",
+        action="store_true",
+        help="disable keyword estimation for fallback lookups",
+    )
     args = parser.parse_args()
 
     if args.csv:
@@ -339,7 +473,9 @@ def main():
     if not entries:
         print("No products provided")
         return
-    products, stats = process_products(entries, verbose=args.verbose)
+    products, stats = process_products(
+        entries, verbose=args.verbose, no_fallback=args.no_fallback
+    )
     if not products:
         print("No product data retrieved")
         return
