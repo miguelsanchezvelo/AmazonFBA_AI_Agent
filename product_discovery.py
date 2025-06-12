@@ -20,6 +20,12 @@ FIXED_COST = 200.0
 FBA_FEE_RATE = 0.2
 COST_RATE = 0.5
 
+# Summary counters
+total_products_considered = 0
+skipped_invalid_asin = 0
+skipped_missing_price = 0
+total_valid_products_saved = 0
+
 
 def parse_price(value) -> Optional[float]:
     """Extract a float price from a raw SerpAPI value."""
@@ -37,6 +43,36 @@ def extract_asin_from_url(url: str) -> Optional[str]:
         return None
     match = re.search(r"/dp/([A-Z0-9]{10})", url)
     return match.group(1) if match else None
+
+
+def is_valid_asin(asin: str) -> bool:
+    """Check if an ASIN returns valid product data from SerpAPI."""
+    params = {
+        "engine": "amazon",
+        "type": "product",
+        "amazon_domain": "amazon.com",
+        "asin": asin,
+        "api_key": API_KEY,
+    }
+    try:
+        search = GoogleSearch(params)
+        data = search.get_dict()
+    except Exception:
+        return False
+    if not data or "error" in data:
+        return False
+    product = data.get("product_results") or {}
+    if not product and not data.get("product_information"):
+        return False
+    title = product.get("title")
+    price_val = product.get("price")
+    if price_val is not None:
+        price = parse_price(price_val)
+    else:
+        price = None
+    if not title or price is None:
+        return False
+    return True
 
 
 def log_skipped(reason: str, product: dict):
@@ -65,6 +101,7 @@ def search_category(category: str) -> List[Dict]:
 
 
 def discover_products(variable_budget: float) -> List[Dict[str, object]]:
+    global total_products_considered, skipped_invalid_asin, skipped_missing_price, total_valid_products_saved
     results: List[Dict[str, object]] = []
     total_missing_price = 0
     total_zero_cost = 0
@@ -72,14 +109,16 @@ def discover_products(variable_budget: float) -> List[Dict[str, object]]:
     for category in CATEGORIES:
         raw_items = search_category(category)
         print(f"Category '{category}' returned {len(raw_items)} results")
-        skipped_missing_price = 0
+        skipped_missing_price_cat = 0
         skipped_zero_cost = 0
         skipped_missing_asin = 0
         skipped_other = 0
         for item in raw_items:
+            total_products_considered += 1
             price = parse_price(item.get("price"))
             if price is None or not isinstance(price, (int, float)) or price <= 0:
                 skipped_missing_price += 1
+                skipped_missing_price_cat += 1
                 log_skipped("missing/invalid price", item)
                 continue
 
@@ -88,6 +127,10 @@ def discover_products(variable_budget: float) -> List[Dict[str, object]]:
             if asin is None:
                 skipped_missing_asin += 1
                 log_skipped("missing ASIN", item)
+                continue
+            if not is_valid_asin(asin):
+                skipped_invalid_asin += 1
+                print(f"Invalid ASIN: {asin} → skipped")
                 continue
 
             if price > variable_budget:
@@ -121,18 +164,19 @@ def discover_products(variable_budget: float) -> List[Dict[str, object]]:
                 "asin": asin,
                 "link": url,
             })
-        total_missing_price += skipped_missing_price
+            total_valid_products_saved += 1
+        total_missing_price += skipped_missing_price_cat
         total_zero_cost += skipped_zero_cost
         total_missing_asin += skipped_missing_asin
         total_skipped = (
-            skipped_missing_price
+            skipped_missing_price_cat
             + skipped_zero_cost
             + skipped_missing_asin
             + skipped_other
         )
         print(
             f"Skipped {total_skipped} products for '{category}' - "
-            f"missing price: {skipped_missing_price}, "
+            f"missing price: {skipped_missing_price_cat}, "
             f"zero cost: {skipped_zero_cost}, "
             f"missing ASIN: {skipped_missing_asin}, "
             f"other: {skipped_other}\n"
@@ -206,6 +250,13 @@ def main():
     print_report(top_products)
     save_to_csv(top_products)
     print(f"Saved {len(top_products)} products to {DATA_PATH}")
+    print()
+    valid_asins = total_products_considered - skipped_invalid_asin
+    print(f"Total products fetched: {total_products_considered}")
+    print(f"Valid ASINs: {valid_asins}")
+    print(f"Skipped invalid ASINs: {skipped_invalid_asin}")
+    print(f"Products saved: {total_valid_products_saved}")
+    print(f"Output: {DATA_PATH}")
 
 
 if __name__ == "__main__":
