@@ -39,6 +39,12 @@ def extract_asin_from_url(url: str) -> Optional[str]:
     return match.group(1) if match else None
 
 
+def log_skipped(reason: str, product: dict):
+    """Print a concise message for a skipped product."""
+    title = (product.get("title") or "")[:40]
+    print(f"SKIPPED ({reason}): {title}")
+
+
 def search_category(category: str) -> List[Dict]:
     params = {
         "engine": "amazon",
@@ -60,28 +66,50 @@ def search_category(category: str) -> List[Dict]:
 
 def discover_products(variable_budget: float) -> List[Dict[str, object]]:
     results: List[Dict[str, object]] = []
+    total_missing_price = 0
+    total_zero_cost = 0
+    total_missing_asin = 0
     for category in CATEGORIES:
         raw_items = search_category(category)
         print(f"Category '{category}' returned {len(raw_items)} results")
-        skipped = 0
+        skipped_missing_price = 0
+        skipped_zero_cost = 0
+        skipped_missing_asin = 0
+        skipped_other = 0
         for item in raw_items:
             price = parse_price(item.get("price"))
+            if price is None or not isinstance(price, (int, float)) or price <= 0:
+                skipped_missing_price += 1
+                log_skipped("missing/invalid price", item)
+                continue
+
             url = item.get("link") or item.get("url")
             asin = extract_asin_from_url(url)
+            if asin is None:
+                skipped_missing_asin += 1
+                log_skipped("missing ASIN", item)
+                continue
 
-            if price is None or asin is None or price > variable_budget:
-                skipped += 1
+            if price > variable_budget:
+                skipped_other += 1
+                log_skipped("over budget", item)
                 continue
 
             est_cost = price * COST_RATE
+            if est_cost <= 0:
+                skipped_zero_cost += 1
+                log_skipped("zero est cost", item)
+                continue
+
             fba_fees = price * FBA_FEE_RATE
             unit_margin = price - est_cost - fba_fees
             units_possible = floor(variable_budget / est_cost)
             if units_possible <= 0:
-                skipped += 1
+                skipped_other += 1
+                log_skipped("no units", item)
                 continue
-            total_est_profit = unit_margin * units_possible
 
+            total_est_profit = unit_margin * units_possible
             results.append({
                 "title": item.get("title"),
                 "price": price,
@@ -93,7 +121,29 @@ def discover_products(variable_budget: float) -> List[Dict[str, object]]:
                 "asin": asin,
                 "link": url,
             })
-        print(f"Skipped {skipped} products for '{category}'\n")
+        total_missing_price += skipped_missing_price
+        total_zero_cost += skipped_zero_cost
+        total_missing_asin += skipped_missing_asin
+        total_skipped = (
+            skipped_missing_price
+            + skipped_zero_cost
+            + skipped_missing_asin
+            + skipped_other
+        )
+        print(
+            f"Skipped {total_skipped} products for '{category}' - "
+            f"missing price: {skipped_missing_price}, "
+            f"zero cost: {skipped_zero_cost}, "
+            f"missing ASIN: {skipped_missing_asin}, "
+            f"other: {skipped_other}\n"
+        )
+
+    print(
+        "Summary of skipped products - "
+        f"missing price: {total_missing_price}, "
+        f"zero cost: {total_zero_cost}, "
+        f"missing ASIN: {total_missing_asin}"
+    )
     return results
 
 
