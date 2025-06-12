@@ -387,33 +387,20 @@ def main():
             "Operating in partial mode - missing " + ", ".join(missing)
         )
     else:
-        print("Operating in manual/simulated mode - no API keys found")
+        print("No API keys detected. Entering MANUAL MODE using mock_market_data.csv")
 
     if mode == "MANUAL":
-        if args.csv:
-            products = load_manual_csv(args.csv)
-        else:
-            products = manual_input()
-            if not products:
-                print(f"No manual data entered. Trying '{MOCK_DATA_CSV}' ...")
-                products = load_manual_csv(MOCK_DATA_CSV)
-                if products:
-                    print(
-                        f"Loaded {len(products)} products from mock file."
-                    )
-                else:
-                    print(
-                        f"Warning: mock data file '{MOCK_DATA_CSV}' not found or empty"
-                    )
-                    return
+        csv_path = args.csv or MOCK_DATA_CSV
+        products = load_manual_csv(csv_path)
         if not products:
-            print("No product data available. Exiting.")
+            print("No valid data found in mock_market_data.csv. Exiting.")
             return
         for p in products:
             p["potential"] = evaluate_potential(p)
         print_report(products)
         save_to_csv(products)
-        print(f"Saved {len(products)} products to {DATA_PATH}")
+        print(f"{len(products)} products loaded from {csv_path}")
+        print("Manual analysis complete. Results saved to data/market_analysis_results.csv")
         return
 
     # API based modes
