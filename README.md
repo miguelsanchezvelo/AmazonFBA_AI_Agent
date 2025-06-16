@@ -46,3 +46,8 @@ are saved to `data/market_analysis_results.csv`.
 python market_analysis.py
 ```
 
+
+## Offline Mock Data
+If you want to experiment without valid API keys, run `prepare_mock_data.py`.
+It creates `data/mock_market_data.csv` with sample products and skips creation
+if the file already exists or API credentials are detected.
