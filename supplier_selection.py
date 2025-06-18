@@ -16,6 +16,7 @@ from typing import Dict, List, Optional
 PROFITABILITY_CSV = os.path.join("data", "profitability_estimation_results.csv")
 DEMAND_CSV = os.path.join("data", "demand_forecast_results.csv")
 OUTPUT_CSV = os.path.join("data", "supplier_selection_results.csv")
+TURNOVER_DAYS = 90  # average inventory turnover period in days
 
 
 # Helpers ---------------------------------------------------------------
@@ -151,6 +152,13 @@ def allocate_budget(rows: List[Dict[str, object]], budget: float):
         else:
             max_affordable = int(remaining // cost)
             units = min(max_affordable, demand)
+        total_cost_row = round(units * cost, 2)
+        est_profit_row = round(units * profit, 2)
+        temporal_roi = (
+            (est_profit_row / total_cost_row) * (365 / TURNOVER_DAYS)
+            if total_cost_row
+            else 0.0
+        )
         row_result = {
             "asin": row.get("asin", ""),
             "title": row.get("title", ""),
@@ -159,8 +167,9 @@ def allocate_budget(rows: List[Dict[str, object]], budget: float):
             "roi": parse_float(row.get("roi")) or 0.0,
             "demand": row.get("demand_level", ""),
             "units_to_order": units,
-            "total_cost": round(units * cost, 2),
-            "estimated_profit": round(units * profit, 2),
+            "total_cost": total_cost_row,
+            "estimated_profit": est_profit_row,
+            "temporal_roi": round(temporal_roi, 2),
         }
         results.append(row_result)
         remaining -= units * cost
@@ -175,7 +184,7 @@ def allocate_budget(rows: List[Dict[str, object]], budget: float):
 def print_table(rows: List[Dict[str, object]], totals):
     header = (
         f"{'ASIN':12} | {'Title':30} | {'Price':>6} | {'Cost':>6} | {'ROI':>5} | "
-        f"{'Dem':>6} | {'Units':>5} | {'Tot Cost':>8} | {'Profit':>7}"
+        f"{'TROI':>6} | {'Dem':>6} | {'Units':>5} | {'Tot Cost':>8} | {'Profit':>7}"
     )
     print(header)
     print("-" * len(header))
@@ -186,19 +195,21 @@ def print_table(rows: List[Dict[str, object]], totals):
             f"${r['price']:>6.2f} | "
             f"${r['cost']:>6.2f} | "
             f"{r['roi']:>5.2f} | "
+            f"{r['temporal_roi']:>6.2f} | "
             f"{r['demand'][:6]:>6} | "
             f"{r['units_to_order']:>5} | "
             f"${r['total_cost']:>8.2f} | "
             f"${r['estimated_profit']:>7.2f}"
         )
     total_cost, total_profit, overall_roi = totals
+    overall_troi = round(overall_roi * (365 / TURNOVER_DAYS), 2)
     print("-" * len(header))
     print(
         f"{'TOTAL':12} | "
-        f"{'':30} | {'':>6} | {'':>6} | {'':>5} | {'':>6} | {'':>5} | "
+        f"{'':30} | {'':>6} | {'':>6} | {'':>5} | {'':>6} | {'':>6} | {'':>5} | "
         f"${total_cost:>8.2f} | ${total_profit:>7.2f}"
     )
-    print(f"Overall ROI: {overall_roi:.2f}")
+    print(f"Overall ROI: {overall_roi:.2f}  Temporal ROI: {overall_troi:.2f}")
 
 
 # Main -----------------------------------------------------------------
@@ -228,6 +239,7 @@ def main() -> None:
             "price",
             "cost",
             "roi",
+            "temporal_roi",
             "demand",
             "units_to_order",
             "total_cost",
