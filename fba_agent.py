@@ -9,6 +9,7 @@ import subprocess
 import sys
 import time
 from typing import Dict, List, Tuple
+import imaplib
 
 from colorama import Fore, Style, init as colorama_init
 from dotenv import load_dotenv
@@ -30,6 +31,7 @@ OUTPUTS: Dict[str, str] = {
     "pricing_simulator": os.path.join(DATA_DIR, "pricing_suggestions.csv"),
     "inventory_management": os.path.join(DATA_DIR, "inventory_management_results.csv"),
     "negotiation_agent": os.path.join("logs", "email_negotiation_log.txt"),
+    "email_manager": "email_logs",
 }
 
 
@@ -128,6 +130,22 @@ def request_missing_keys(serp: str | None, keepa: str | None, openai: str | None
         if openai:
             os.environ["OPENAI_API_KEY"] = openai
     return serp, keepa, openai
+
+
+def check_email_connection() -> bool:
+    """Return ``True`` if email credentials are present and IMAP login succeeds."""
+
+    email_addr = os.getenv("EMAIL_ADDRESS")
+    password = os.getenv("EMAIL_PASSWORD")
+    if not email_addr or not password:
+        return False
+    try:
+        imap = imaplib.IMAP4_SSL("imap.gmail.com")
+        imap.login(email_addr, password)
+        imap.logout()
+    except Exception:
+        return False
+    return True
 
 
 def print_service_status(services: Dict[str, bool]) -> None:
@@ -253,7 +271,9 @@ def main() -> None:
         OPENAI_MODEL: openai_model if openai_key else False,
     }
     negotiation_exists = os.path.exists("negotiation_agent.py")
-    email_ok = bool(os.getenv("EMAIL_ADDRESS") and os.getenv("EMAIL_PASSWORD"))
+    email_ok = check_email_connection()
+    if not email_ok:
+        print(f"{Fore.YELLOW}! Email credentials missing or connection failed{Style.RESET_ALL}")
     print_service_status(services)
     ensure_mock_data(services)
 
@@ -288,6 +308,13 @@ def main() -> None:
             None,
             [OUTPUTS["negotiation_agent"]],
             negotiation_exists and services["OpenAI"] and services[OPENAI_MODEL] and email_ok,
+        ),
+        (
+            "email_manager",
+            ["email_manager.py"],
+            None,
+            [OUTPUTS["email_manager"]],
+            email_ok,
         ),
     ]
 
