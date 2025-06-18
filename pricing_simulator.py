@@ -8,8 +8,13 @@ from typing import Dict, List, Optional, Tuple
 from dotenv import load_dotenv
 from openai import OpenAI
 
+SYSTEM_PROMPT = (
+    "You are an Amazon pricing consultant who gives short, actionable advice "
+    "for optimizing FBA product prices."
+)
+
 INPUT_CSV = os.path.join("data", "profitability_estimation_results.csv")
-OUTPUT_CSV = os.path.join("data", "pricing_simulation_results.csv")
+OUTPUT_CSV = os.path.join("data", "pricing_suggestions.csv")
 
 
 def parse_float(value: Optional[str]) -> Optional[float]:
@@ -22,21 +27,41 @@ def parse_float(value: Optional[str]) -> Optional[float]:
     return float(match.group()) if match else None
 
 
-def load_profitable_products(path: str) -> List[Dict[str, str]]:
-    """Load rows with ROI >= 0.5 from the CSV file."""
+def load_top_products(path: str, count: int = 5) -> List[Dict[str, str]]:
+    """Return the most profitable products from the CSV file."""
     if not os.path.exists(path):
         print(f"Input file '{path}' not found. Run profitability_estimation.py first.")
         return []
+
     rows: List[Dict[str, str]] = []
     with open(path, newline="", encoding="utf-8") as f:
         reader = csv.DictReader(f)
         for row in reader:
-            roi = parse_float(row.get("roi"))
-            if roi is not None and roi >= 0.5:
+            profit = parse_float(row.get("profit"))
+            if profit is not None:
                 rows.append(row)
+
     if not rows:
-        print("No products with ROI >= 0.5 found.")
-    return rows
+        print("No products found in profitability results.")
+        return []
+
+    rows.sort(key=lambda r: parse_float(r.get("profit")) or 0.0, reverse=True)
+    return rows[:count]
+
+
+def choose_model(client: OpenAI) -> str:
+    """Return gpt-4 if available else gpt-3.5-turbo."""
+    try:
+        available = {m.id for m in client.models.list().data}
+    except Exception as exc:
+        print(f"Failed to list models: {exc}")
+        return "gpt-3.5-turbo"
+
+    if any(m.startswith("gpt-4") for m in available):
+        return "gpt-4"
+
+    print("Model 'gpt-4' not available. Using 'gpt-3.5-turbo'.")
+    return "gpt-3.5-turbo"
 
 
 def save_results(rows: List[Dict[str, str]], path: str) -> None:
@@ -45,44 +70,48 @@ def save_results(rows: List[Dict[str, str]], path: str) -> None:
     with open(path, "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(
             f,
-            fieldnames=["ASIN", "Title", "Recommended Price Strategy", "Notes"],
+            fieldnames=["ASIN", "Title", "Suggested Price", "Notes"],
         )
         writer.writeheader()
         writer.writerows(rows)
 
 
-def ask_question(client: OpenAI, messages: List[Dict[str, str]], question: str) -> str:
+def ask_question(client: OpenAI, model: str, messages: List[Dict[str, str]], question: str) -> str:
     """Send a question to ChatGPT and return the answer."""
     messages.append({"role": "user", "content": question})
-    response = client.chat.completions.create(model="gpt-4", messages=messages)
+    try:
+        response = client.chat.completions.create(model=model, messages=messages)
+    except Exception as exc:
+        raise RuntimeError(f"OpenAI API error: {exc}") from exc
     answer = response.choices[0].message.content.strip()
     messages.append({"role": "assistant", "content": answer})
     return answer
 
 
-def analyze_product(client: OpenAI, asin: str, title: str) -> Tuple[str, str]:
-    """Run a short pricing conversation for a product."""
+def analyze_product(client: OpenAI, model: str, row: Dict[str, str]) -> Tuple[str, str]:
+    """Return suggested price and notes for the given product."""
+    title = row.get("title", "")
+    price = parse_float(row.get("price"))
+    cost = parse_float(row.get("cost"))
+
     messages: List[Dict[str, str]] = [
-        {"role": "system", "content": "You are a pricing strategy expert for FBA products"}
+        {"role": "system", "content": SYSTEM_PROMPT}
     ]
 
-    q1 = "\u00bfQu\u00e9 rango de precios maximizar\u00eda ventas sin comprometer margen?"
-    q2 = "\u00bfUn aumento de precio del 10% afectar\u00eda significativamente la demanda?"
-    q3 = (
-        "\u00bfQu\u00e9 estrategia de precios podr\u00eda aplicarse para lanzamiento "
-        "(descuento, bundle, etc.)?"
+    price_str = f"${price:.2f}" if price is not None else "N/A"
+    cost_str = f"${cost:.2f}" if cost is not None else "N/A"
+    question = (
+        "Given the following product details:\n"
+        f"Title: {title}\n"
+        f"Current Amazon price: {price_str}\n"
+        f"Cost to produce: {cost_str}\n"
+        "What is the optimal selling price in USD to maximize profitability while remaining competitive?"
+        " Provide the price and a short reasoning."
     )
 
-    print(f"\n### ASIN {asin} - {title}")
-    a1 = ask_question(client, messages, f"Producto: {title}. {q1}")
-    print(f"Q1: {q1}\nA1: {a1}")
-    a2 = ask_question(client, messages, q2)
-    print(f"Q2: {q2}\nA2: {a2}")
-    a3 = ask_question(client, messages, q3)
-    print(f"Q3: {q3}\nA3: {a3}\n")
-
-    notes = f"{a1} | {a2}"
-    return a3, notes
+    answer = ask_question(client, model, messages, question)
+    suggested_price = parse_float(answer)
+    return (f"${suggested_price:.2f}" if suggested_price is not None else "", answer)
 
 
 def main() -> None:
@@ -94,24 +123,24 @@ def main() -> None:
 
     client = OpenAI(api_key=api_key)
 
-    products = load_profitable_products(INPUT_CSV)
+    model = choose_model(client)
+    products = load_top_products(INPUT_CSV)
     if not products:
         return
 
     results: List[Dict[str, str]] = []
     for row in products:
-        asin = row.get("asin", "")
-        title = row.get("title", "")
         try:
-            strategy, notes = analyze_product(client, asin, title)
+            suggested, notes = analyze_product(client, model, row)
         except Exception as exc:  # pragma: no cover - network
+            asin = row.get("asin", "")
             print(f"Failed to get pricing advice for ASIN {asin}: {exc}")
             continue
         results.append(
             {
-                "ASIN": asin,
-                "Title": title,
-                "Recommended Price Strategy": strategy,
+                "ASIN": row.get("asin", ""),
+                "Title": row.get("title", ""),
+                "Suggested Price": suggested,
                 "Notes": notes,
             }
         )
