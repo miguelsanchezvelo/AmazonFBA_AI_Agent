@@ -1,4 +1,4 @@
-"""Email management utilities for supplier communications."""
+"""Manage supplier emails with optional automatic replies."""
 
 from __future__ import annotations
 
@@ -6,6 +6,7 @@ import email
 import imaplib
 import json
 import os
+import re
 import smtplib
 from email.header import decode_header
 from email.message import EmailMessage
@@ -23,7 +24,10 @@ IMAP_SERVER = "imap.gmail.com"
 SMTP_SERVER = "smtp.gmail.com"
 SMTP_PORT = 587
 
-LOG_PATH = os.path.join("logs", "email_threads.json")
+LOG_DIR = os.path.join("email_logs")
+GENERIC_REPLY = (
+    "Thank you for your email. We will review your offer and get back to you soon."
+)
 
 
 def _decode(value: str | bytes | None) -> str:
@@ -61,20 +65,24 @@ def parse_email(msg: email.message.Message) -> Tuple[str, str, str, str]:
     return subject, sender, body.strip(), msg_id
 
 
-def load_threads() -> Dict[str, List[Dict[str, str]]]:
-    if not os.path.exists(LOG_PATH):
-        return {}
-    try:
-        with open(LOG_PATH, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except Exception:
-        return {}
+def sanitize_thread_id(value: str) -> str:
+    """Return a filesystem-safe thread id."""
+
+    return re.sub(r"[^a-zA-Z0-9_.-]", "_", value)
 
 
-def save_threads(threads: Dict[str, List[Dict[str, str]]]) -> None:
-    os.makedirs(os.path.dirname(LOG_PATH), exist_ok=True)
-    with open(LOG_PATH, "w", encoding="utf-8") as f:
-        json.dump(threads, f, indent=2)
+def log_thread(thread_id: str, sender: str, subject: str, body: str, reply: str | None = None) -> None:
+    """Append message and optional reply to a thread log."""
+
+    os.makedirs(LOG_DIR, exist_ok=True)
+    path = os.path.join(LOG_DIR, f"{sanitize_thread_id(thread_id)}.txt")
+    with open(path, "a", encoding="utf-8") as f:
+        f.write("--- INCOMING ---\n")
+        f.write(f"FROM: {sender}\nSUBJECT: {subject}\n\n{body}\n")
+        if reply:
+            f.write("\n--- REPLY ---\n" + reply + "\n")
+
+
 
 
 def is_supplier_reply(msg: email.message.Message, my_email: str) -> bool:
@@ -174,8 +182,6 @@ def process_inbox() -> None:
         imap.logout()
         return
 
-    threads = load_threads()
-
     for num in data[0].split():
         status, fetched = imap.fetch(num, "(RFC822)")
         if status != "OK" or not fetched:
@@ -186,41 +192,28 @@ def process_inbox() -> None:
 
         subject, sender, body, msg_id = parse_email(msg)
         thread_id = msg.get("In-Reply-To") or msg_id
-        summary = body[:120]
-        reply_needed = False
         reply_text = ""
 
-        if openai_ok and client:
-            try:
-                summary, reply_needed, reply_text = analyse_email(
-                    client, model, sender, subject, body
-                )
-            except Exception as exc:  # pragma: no cover - network
-                print(f"OpenAI error for email from {sender}: {exc}")
-                openai_ok = False
+        if auto_reply:
+            if openai_ok and client:
+                try:
+                    _, _, reply_text = analyse_email(
+                        client, model, sender, subject, body
+                    )
+                except Exception as exc:  # pragma: no cover - network
+                    print(f"OpenAI error for email from {sender}: {exc}")
+                    openai_ok = False
+                    reply_text = GENERIC_REPLY
+            else:
+                reply_text = GENERIC_REPLY
 
-        entry = {
-            "from": sender,
-            "subject": subject,
-            "body": body,
-            "summary": summary,
-            "reply": reply_text if reply_needed else "",
-        }
-        threads.setdefault(thread_id, []).append(entry)
-
-        if reply_needed and reply_text:
-            if auto_reply and openai_ok:
+            if reply_text:
                 try:
                     send_reply(email_addr, password, sender, subject, reply_text)
-                    entry["sent_reply"] = True
                 except Exception as exc:  # pragma: no cover - network
                     print(f"Failed to send reply to {sender}: {exc}")
-                    entry["sent_reply"] = False
-            else:
-                print(f"Draft reply for {sender}:\n{reply_text}\n")
-                entry["sent_reply"] = False
+        log_thread(thread_id, sender, subject, body, reply_text if reply_text else None)
 
-    save_threads(threads)
     imap.logout()
 
 
