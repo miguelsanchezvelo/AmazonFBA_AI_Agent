@@ -5,7 +5,7 @@ This repository contains a simple script to discover potential Amazon FBA produc
 ## Setup
 1. Install dependencies:
    ```bash
-   pip install python-dotenv google-search-results
+   pip install python-dotenv google-search-results openai
    ```
    The SerpAPI client is imported in the code as `from serpapi import GoogleSearch`.
    If you previously installed the wrong package, you can remove it with:
@@ -51,3 +51,13 @@ python market_analysis.py
 If you want to experiment without valid API keys, run `prepare_mock_data.py`.
 It creates `data/mock_market_data.csv` with sample products and skips creation
 if the file already exists or API credentials are detected.
+
+## Supplier Quote Messages
+The `generate_supplier_messages.py` script sends each product in
+`data/supplier_contact_requests.json` to the OpenAI Chat API and saves the
+resulting emails to `data/supplier_messages.json`. Set your OpenAI key in `.env`
+as `OPENAI_API_KEY` before running:
+
+```bash
+python generate_supplier_messages.py
+```
