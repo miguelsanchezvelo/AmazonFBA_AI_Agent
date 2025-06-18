@@ -16,6 +16,7 @@ from typing import Dict, List, Optional
 PROFITABILITY_CSV = os.path.join("data", "profitability_estimation_results.csv")
 DEMAND_CSV = os.path.join("data", "demand_forecast_results.csv")
 OUTPUT_CSV = os.path.join("data", "supplier_selection_results.csv")
+EMAILS_TXT = os.path.join("data", "supplier_emails.txt")
 TURNOVER_DAYS = 90  # average inventory turnover period in days
 
 
@@ -247,6 +248,10 @@ def main() -> None:
         ],
     )
     print(f"Results saved to {OUTPUT_CSV}")
+    if os.path.exists(EMAILS_TXT):
+        print(f"Supplier emails already available at {EMAILS_TXT}.")
+    else:
+        print("Run 'python supplier_contact_generator.py' to create supplier emails.")
 
 
 if __name__ == "__main__":
