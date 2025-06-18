@@ -70,3 +70,11 @@ Run it manually with:
 python negotiation_agent.py
 ```
 It is also executed automatically by `fba_agent.py` when credentials are present.
+
+## Email Manager
+`email_manager.py` extends the automated workflow by keeping track of entire conversation threads. It connects to the same inbox using IMAP and SMTP, detects replies from suppliers and, if `AUTO_REPLY=True`, generates responses with OpenAI and sends them automatically. All processed threads are stored in `logs/email_threads.json`.
+
+Run it manually with:
+```bash
+python email_manager.py
+```
