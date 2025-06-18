@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import argparse
 import json
 import os
 import subprocess
@@ -9,6 +10,7 @@ import sys
 import time
 from typing import Dict, List, Tuple
 
+from colorama import Fore, Style, init as colorama_init
 from dotenv import load_dotenv
 
 
@@ -28,6 +30,17 @@ OUTPUTS: Dict[str, str] = {
     "pricing_simulator": os.path.join(DATA_DIR, "pricing_suggestions.csv"),
     "inventory_management": os.path.join(DATA_DIR, "inventory_management_results.csv"),
 }
+
+
+def parse_args() -> argparse.Namespace:
+    """Parse command line arguments."""
+
+    parser = argparse.ArgumentParser(description="Run the FBA pipeline")
+    parser.add_argument("--auto", action="store_true", help="run without prompts")
+    parser.add_argument("--resume", action="store_true", help="resume from last completed step")
+    parser.add_argument("--from-step", help="start from given step")
+    parser.add_argument("--reuse", action="store_true", help="reuse existing results when possible")
+    return parser.parse_args()
 
 
 def log(msg: str) -> None:
@@ -95,12 +108,33 @@ def detect_services() -> Tuple[Dict[str, bool], str | None, str | None, str | No
     return services, serp, keepa, openai_key, openai_model
 
 
+def request_missing_keys(serp: str | None, keepa: str | None, openai: str | None) -> Tuple[str | None, str | None, str | None]:
+    """Prompt the user for any missing API keys."""
+
+    if not serp:
+        val = input("Enter your SerpAPI key (or leave blank): ").strip()
+        serp = val or None
+        if serp:
+            os.environ["SERPAPI_API_KEY"] = serp
+    if not keepa:
+        val = input("Enter your Keepa API key (or leave blank): ").strip()
+        keepa = val or None
+        if keepa:
+            os.environ["KEEPA_API_KEY"] = keepa
+    if not openai:
+        val = input("Enter your OpenAI API key (or leave blank): ").strip()
+        openai = val or None
+        if openai:
+            os.environ["OPENAI_API_KEY"] = openai
+    return serp, keepa, openai
+
+
 def print_service_status(services: Dict[str, bool]) -> None:
     """Display a summary of available services."""
 
     print("Service availability:")
     for name, ok in services.items():
-        symbol = "✓" if ok else "❌"
+        symbol = f"{Fore.GREEN}✓{Style.RESET_ALL}" if ok else f"{Fore.RED}✗{Style.RESET_ALL}"
         print(f"  {symbol} {name}")
 
     missing = [k for k, v in services.items() if not v]
@@ -119,31 +153,36 @@ def print_service_status(services: Dict[str, bool]) -> None:
         print("All services available.")
 
 
-def run_step(args: List[str], step: str, input_data: str | None = None) -> str:
-    """Run a subprocess step and return its status string."""
+def run_step(args: List[str], step: str, input_data: str | None = None, *, auto: bool = False) -> Tuple[str, float]:
+    """Run a subprocess step and return ``(status, duration)``."""
 
     print(f"\n=== Running {step} ===")
     log(f"START {step}")
+    start = time.time()
     try:
         subprocess.run([sys.executable] + args, check=True, text=True, input=input_data)
     except subprocess.CalledProcessError as exc:
-        print(f"Error during {step}: {exc}")
-        log(f"ERROR {step}: {exc}")
+        duration = time.time() - start
+        print(f"{Fore.RED}✗ {step} failed: {exc}{Style.RESET_ALL}")
+        log(f"RESULT {step} failed {duration:.1f}s {exc}")
+        if auto:
+            return "failed", duration
         while True:
             choice = input("Retry (r), skip (s) or abort (a)? [s]: ").strip().lower()
             if choice in {"r", "s", "a", ""}:
                 break
         if choice == "r":
-            return run_step(args, step, input_data)
+            return run_step(args, step, input_data, auto=auto)
         if choice == "a":
             log("ABORT")
-            return "abort"
-        log(f"SKIP {step}")
-        return "skipped"
+            return "abort", duration
+        log(f"RESULT {step} skipped {duration:.1f}s")
+        return "skipped", duration
     else:
-        print(f"{step} completed successfully.")
-        log(f"SUCCESS {step}")
-        return "completed"
+        duration = time.time() - start
+        print(f"{Fore.GREEN}✓ {step} completed in {duration:.1f}s{Style.RESET_ALL}")
+        log(f"RESULT {step} completed {duration:.1f}s")
+        return "completed", duration
 
 
 def check_output_exists(paths: List[str]) -> bool:
@@ -159,29 +198,71 @@ def ensure_mock_data(services: Dict[str, bool]) -> None:
         run_step(["prepare_mock_data.py"], "prepare_mock_data")
 
 
-def ask_reuse(step: str, paths: List[str]) -> bool:
-    """Ask the user whether to reuse existing outputs."""
+def ask_reuse(step: str, paths: List[str], *, auto: bool = False, force: bool = False) -> bool:
+    """Return ``True`` if existing outputs should be reused."""
 
-    if check_output_exists(paths):
-        choice = input(f"Existing results for {step} found. Reuse them? [y/N]: ").strip().lower()
-        if choice == "y":
-            print(f"Skipping {step} and reusing existing data.")
-            log(f"REUSE {step}")
-            return True
+    if not check_output_exists(paths):
+        return False
+    if force:
+        print(f"{Fore.YELLOW}! Reusing cached results for {step}{Style.RESET_ALL}")
+        log(f"RESULT {step} reused")
+        return True
+    if auto:
+        return False
+    choice = input(f"Existing results for {step} found. Reuse them? [y/N]: ").strip().lower()
+    if choice == "y":
+        print(f"{Fore.YELLOW}! Reusing cached results for {step}{Style.RESET_ALL}")
+        log(f"RESULT {step} reused")
+        return True
     return False
 
 
+def load_last_statuses() -> Dict[str, str]:
+    """Return step statuses from the last run recorded in ``log.txt``."""
+
+    if not os.path.exists(LOG_FILE):
+        return {}
+    with open(LOG_FILE, "r", encoding="utf-8") as f:
+        lines = f.readlines()
+    start = 0
+    for i in range(len(lines) - 1, -1, -1):
+        if "RUN START" in lines[i]:
+            start = i
+            break
+    statuses: Dict[str, str] = {}
+    for line in lines[start:]:
+        if line.strip().startswith("RESULT"):
+            parts = line.strip().split()
+            if len(parts) >= 3:
+                statuses[parts[1]] = parts[2]
+    return statuses
+
+
 def main() -> None:
+    colorama_init()
+    args = parse_args()
+
+    log("RUN START")
     services, serp, keepa, openai_key, openai_model = detect_services()
+    serp, keepa, openai_key = request_missing_keys(serp, keepa, openai_key)
+    services = {
+        "SerpAPI": bool(serp),
+        "Keepa": bool(keepa),
+        "OpenAI": bool(openai_key),
+        OPENAI_MODEL: openai_model if openai_key else False,
+    }
     print_service_status(services)
     ensure_mock_data(services)
 
-    while True:
-        try:
-            budget = float(input("Enter your total startup budget in USD: "))
-            break
-        except ValueError:
-            print("Please enter a valid number.")
+    if args.auto:
+        budget = 1000.0
+    else:
+        while True:
+            try:
+                budget = float(input("Enter your total startup budget in USD: "))
+                break
+            except ValueError:
+                print("Please enter a valid number.")
 
     steps = [
         ("product_discovery", ["product_discovery.py"], f"{budget}\n", [OUTPUTS["product_discovery"]], services["SerpAPI"]),
@@ -200,36 +281,71 @@ def main() -> None:
         ("inventory_management", ["inventory_management.py"], None, [OUTPUTS["inventory_management"]], True),
     ]
 
+    step_names = [s[0] for s in steps]
+    statuses: Dict[str, str] = {name: "pending" for name in step_names}
+    durations: Dict[str, float] = {name: 0.0 for name in step_names}
     generated: List[str] = []
-    statuses: Dict[str, str] = {}
 
-    for name, args, inp, paths, condition in steps:
+    resume_states = load_last_statuses() if args.resume else {}
+
+    start_index = 0
+    if args.from_step and args.from_step in step_names:
+        start_index = max(start_index, step_names.index(args.from_step))
+
+    if args.resume and resume_states:
+        last_done = -1
+        for i, name in enumerate(step_names):
+            if resume_states.get(name) == "completed":
+                statuses[name] = "reused"
+                last_done = i
+        start_index = max(start_index, last_done + 1)
+
+    pipeline_start = time.time()
+
+    for idx, (name, cmd, inp, paths, condition) in enumerate(steps):
+        if idx < start_index:
+            continue
         if not condition:
-            print(f"Skipping {name} due to missing services.")
-            log(f"SKIP {name} - service")
+            print(f"{Fore.YELLOW}! {name} skipped due to missing services{Style.RESET_ALL}")
+            log(f"RESULT {name} skipped 0s service")
             statuses[name] = "skipped"
             continue
-        if ask_reuse(name, paths):
+        if ask_reuse(name, paths, auto=args.auto, force=args.reuse or statuses.get(name) == "reused"):
             statuses[name] = "reused"
             generated.extend(p for p in paths if os.path.exists(p))
             continue
-        result = run_step(args, name, inp)
-        if result == "abort":
+        status, dur = run_step(cmd, name, inp, auto=args.auto)
+        durations[name] = dur
+        if status == "abort":
             print("Pipeline aborted.")
+            log("RUN END")
             return
-        statuses[name] = result
-        if result == "completed":
+        statuses[name] = status
+        if status in {"completed", "reused"}:
             generated.extend(p for p in paths if os.path.exists(p))
 
+    total_time = time.time() - pipeline_start
+
     print("\n=== Summary ===")
-    for step, state in statuses.items():
-        symbol = "✓" if state in {"completed", "reused"} else "❌"
-        print(f" {symbol} {step}: {state}")
+    for step in step_names:
+        state = statuses.get(step, "skipped")
+        dur = durations.get(step, 0.0)
+        if state == "completed":
+            symbol = f"{Fore.GREEN}✓{Style.RESET_ALL}"
+        elif state == "reused":
+            symbol = f"{Fore.YELLOW}!{Style.RESET_ALL}"
+        elif state == "failed":
+            symbol = f"{Fore.RED}✗{Style.RESET_ALL}"
+        else:
+            symbol = f"{Fore.YELLOW}!{Style.RESET_ALL}"
+        print(f" {symbol} {step}: {state} ({dur:.1f}s)")
 
     if generated:
         print("\nGenerated or reused files:")
         for path in generated:
             print(f" - {path}")
+
+    print(f"\nTotal pipeline time: {total_time:.1f}s")
 
     warnings = [s for s, st in statuses.items() if st == "skipped"]
     if warnings:
@@ -249,6 +365,8 @@ def main() -> None:
 
     if suggestions:
         print("\nSubscriptions that would improve results: " + ", ".join(suggestions))
+
+    log("RUN END")
 
 
 if __name__ == "__main__":
