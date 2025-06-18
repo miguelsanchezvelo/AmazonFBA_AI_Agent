@@ -29,6 +29,7 @@ OUTPUTS: Dict[str, str] = {
     "supplier_contact_generator": "supplier_messages",
     "pricing_simulator": os.path.join(DATA_DIR, "pricing_suggestions.csv"),
     "inventory_management": os.path.join(DATA_DIR, "inventory_management_results.csv"),
+    "negotiation_agent": os.path.join("logs", "email_negotiation_log.txt"),
 }
 
 
@@ -251,6 +252,8 @@ def main() -> None:
         "OpenAI": bool(openai_key),
         OPENAI_MODEL: openai_model if openai_key else False,
     }
+    negotiation_exists = os.path.exists("negotiation_agent.py")
+    email_ok = bool(os.getenv("EMAIL_ADDRESS") and os.getenv("EMAIL_PASSWORD"))
     print_service_status(services)
     ensure_mock_data(services)
 
@@ -279,6 +282,13 @@ def main() -> None:
         ("supplier_contact_generator", ["supplier_contact_generator.py"], None, [OUTPUTS["supplier_contact_generator"]], services["OpenAI"] and services[OPENAI_MODEL]),
         ("pricing_simulator", ["pricing_simulator.py"], None, [OUTPUTS["pricing_simulator"]], services["OpenAI"] and services[OPENAI_MODEL]),
         ("inventory_management", ["inventory_management.py"], None, [OUTPUTS["inventory_management"]], True),
+        (
+            "negotiation_agent",
+            ["negotiation_agent.py"],
+            None,
+            [OUTPUTS["negotiation_agent"]],
+            negotiation_exists and services["OpenAI"] and services[OPENAI_MODEL] and email_ok,
+        ),
     ]
 
     step_names = [s[0] for s in steps]
