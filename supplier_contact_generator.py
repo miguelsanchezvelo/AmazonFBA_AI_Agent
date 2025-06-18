@@ -1,7 +1,14 @@
-"""Generate supplier inquiry messages using OpenAI's Chat API."""
+"""Generate supplier inquiry messages using OpenAI's Chat API.
+
+This script reads products from ``data/supplier_selection_results.csv`` and
+creates one text file per ASIN inside ``supplier_messages/`` with a short
+message that can be sent to suppliers.  The prompt given to OpenAI is read from
+``template.txt`` so users can customise the wording.
+"""
 
 from __future__ import annotations
 
+import argparse
 import csv
 import os
 from typing import Dict, List
@@ -12,7 +19,10 @@ from openai import OpenAI
 
 INPUT_CSV = os.path.join("data", "supplier_selection_results.csv")
 OUTPUT_DIR = "supplier_messages"
-MODEL = "gpt-4"
+TEMPLATE_FILE = "template.txt"
+ERROR_LOG = "supplier_errors.log"
+
+MODEL = os.getenv("OPENAI_MODEL", "gpt-4")
 SYSTEM_PROMPT = "You are an expert FBA sourcing agent helping contact suppliers."
 
 
@@ -48,26 +58,65 @@ def load_products(path: str) -> List[Dict[str, str]]:
     return rows
 
 
-def generate_message(client: OpenAI, title: str) -> str:
-    """Generate a polite supplier message for the given product title."""
+def load_template(path: str) -> str:
+    """Return template contents or raise FileNotFoundError."""
+
+    if not os.path.exists(path):
+        raise FileNotFoundError(f"Template file '{path}' not found.")
+    with open(path, "r", encoding="utf-8") as f:
+        return f.read()
+
+
+def generate_message(
+    client: OpenAI,
+    asin: str,
+    title: str,
+    tone: str,
+    language: str,
+    template: str,
+) -> str:
+    """Generate a supplier message based on the given template."""
+
+    user_prompt = template.format(
+        asin=asin,
+        title=title,
+        tone=tone,
+        language=language,
+    )
 
     messages = [
         {"role": "system", "content": SYSTEM_PROMPT},
-        {
-            "role": "user",
-            "content": (
-                "Write a short message to the supplier about the product titled "
-                f"'{title}'. Ask for minimum order quantity (MOQ), unit price, "
-                "catalogue of similar items and delivery time."
-            ),
-        },
+        {"role": "user", "content": user_prompt},
     ]
 
     resp = client.chat.completions.create(model=MODEL, messages=messages)
     return resp.choices[0].message.content.strip()
 
 
+def log_error(asin: str, title: str, error: Exception) -> None:
+    """Append an error entry to the log file."""
+
+    os.makedirs(os.path.dirname(ERROR_LOG) or ".", exist_ok=True)
+    with open(ERROR_LOG, "a", encoding="utf-8") as f:
+        f.write(f"ASIN: {asin} | Title: {title} | Error: {error}\n")
+
+
 def main() -> None:
+    parser = argparse.ArgumentParser(description="Generate supplier messages")
+    parser.add_argument(
+        "--tone",
+        choices=["formal", "informal"],
+        default="formal",
+        help="Message tone",
+    )
+    parser.add_argument(
+        "--lang",
+        choices=["en", "es"],
+        default="en",
+        help="Message language",
+    )
+    args = parser.parse_args()
+
     load_dotenv()
 
     api_key = os.getenv("OPENAI_API_KEY")
@@ -76,6 +125,12 @@ def main() -> None:
         return
 
     client = OpenAI(api_key=api_key)
+
+    try:
+        template = load_template(TEMPLATE_FILE)
+    except FileNotFoundError as exc:
+        print(exc)
+        return
 
     try:
         products = load_products(INPUT_CSV)
@@ -92,13 +147,20 @@ def main() -> None:
 
     os.makedirs(OUTPUT_DIR, exist_ok=True)
 
+    success = 0
+    failures = 0
+
     for prod in products:
         asin = prod["asin"]
         title = prod["title"]
         try:
-            message = generate_message(client, title)
+            message = generate_message(
+                client, asin, title, args.tone, args.lang, template
+            )
         except Exception as exc:  # pragma: no cover - network
             print(f"Failed to generate message for {asin}: {exc}")
+            log_error(asin, title, exc)
+            failures += 1
             continue
 
         out_path = os.path.join(OUTPUT_DIR, f"{asin}.txt")
@@ -106,8 +168,17 @@ def main() -> None:
             with open(out_path, "w", encoding="utf-8") as f:
                 f.write(f"ASIN: {asin}\nTitle: {title}\n\n{message}\n")
             print(f"Saved message for {asin} in {out_path}")
+            success += 1
         except Exception as exc:
             print(f"Error saving message for {asin}: {exc}")
+            log_error(asin, title, exc)
+            failures += 1
+
+    print(
+        f"Generated {success} messages with {failures} failures." + (
+            f" See {ERROR_LOG} for details." if failures else ""
+        )
+    )
 
 
 if __name__ == "__main__":

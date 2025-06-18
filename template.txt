@@ -1,0 +1,2 @@
+Write a {tone} message in {language} to the supplier about the product titled '{title}' (ASIN {asin}). Ask for minimum order quantity (MOQ), unit price, catalogue of similar items and delivery time.
+
