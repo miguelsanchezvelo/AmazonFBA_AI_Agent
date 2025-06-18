@@ -61,3 +61,12 @@ as `OPENAI_API_KEY` before running:
 ```bash
 python generate_supplier_messages.py
 ```
+
+## Email Negotiation Agent
+The `negotiation_agent.py` script connects to a Gmail inbox, summarizes unread supplier emails and optionally sends replies with GPT‑4. Configure `EMAIL_ADDRESS`, `EMAIL_PASSWORD` and `OPENAI_API_KEY` in your `.env` file. Enable automatic sending by setting `AUTO_REPLY=True`.
+
+Run it manually with:
+```bash
+python negotiation_agent.py
+```
+It is also executed automatically by `fba_agent.py` when credentials are present.
