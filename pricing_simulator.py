@@ -1,12 +1,14 @@
-"""Simulate pricing strategies based on profitability and demand data."""
+"""Simulate how selling price changes impact ROI and total profit."""
 
 import csv
 import os
 import re
 from typing import Dict, List, Optional
 
-PROFIT_CSV = os.path.join("data", "profitability_estimation_results.csv")
-DEMAND_CSV = os.path.join("data", "demand_forecast_results.csv")
+INPUT_CSV = os.path.join("data", "profitability_estimation_results.csv")
+OUTPUT_CSV = os.path.join("data", "pricing_simulation_results.csv")
+VARIATIONS = [-0.2, -0.1, 0.0, 0.1, 0.2]
+DEFAULT_SALES = 100  # units used if no sales info available
 
 
 # Parsing helpers ---------------------------------------------------------
@@ -38,107 +40,90 @@ def load_rows(path: str) -> List[Dict[str, str]]:
         return list(csv.DictReader(f))
 
 
-def join_data(profit_rows: List[Dict[str, str]], demand_rows: List[Dict[str, str]]) -> List[Dict[str, object]]:
-    demand_map = {r.get("asin"): r for r in demand_rows}
-    combined: List[Dict[str, object]] = []
-    for p in profit_rows:
-        asin = p.get("asin") or ""
-        d = demand_map.get(asin)
-        if not d:
-            continue
-        price = parse_float(p.get("price"))
-        cost = parse_float(p.get("cost"))
-        shipping = parse_float(p.get("shipping")) or 0.0
-        fba_fees = parse_float(p.get("fba_fees")) or 0.0
-        sales = parse_int(d.get("est_monthly_sales")) or 0
-        if price is None or cost is None:
-            continue
-        combined.append(
-            {
-                "asin": asin,
-                "title": p.get("title", ""),
-                "price": price,
-                "cost": cost,
-                "shipping": shipping,
-                "fba_fees": fba_fees,
-                "base_sales": sales,
-            }
-        )
-    return combined
-
-
 # Simulation --------------------------------------------------------------
 
-def simulate(rows: List[Dict[str, object]]) -> List[Dict[str, object]]:
+def simulate(rows: List[Dict[str, str]]) -> List[Dict[str, object]]:
     results: List[Dict[str, object]] = []
     for row in rows:
-        base_price = row["price"]
-        cost = row["cost"]
-        shipping = row["shipping"]
-        base_fees = row["fba_fees"]
-        base_sales = row["base_sales"]
-        for step in range(0, 6):  # 0% to 50% in 10% increments
-            pct = step * 0.1
-            new_price = round(base_price * (1 + pct), 2)
-            sales_factor = max(0.0, 1 - 1.5 * pct)  # +10% price => -15% sales
-            est_sales = int(round(base_sales * sales_factor))
-            fba_fees = new_price * 0.15 + 3.0 if base_fees else 0.0
-            profit_unit = new_price - cost - shipping - fba_fees
-            roi = (
-                round(profit_unit / (cost + shipping + fba_fees), 2)
-                if (cost + shipping + fba_fees)
-                else 0.0
-            )
-            total_profit = round(profit_unit * est_sales, 2)
+        price = parse_float(row.get("price"))
+        cost = parse_float(row.get("cost")) or 0.0
+        shipping = parse_float(row.get("shipping")) or 0.0
+        base_sales = parse_int(row.get("est_monthly_sales")) or DEFAULT_SALES
+        if price is None or cost is None:
+            continue
+        for pct in VARIATIONS:
+            new_price = round(price * (1 + pct), 2)
+            fba_fees = round(new_price * 0.15 + 3.0, 2)
+            margin = new_price - cost - shipping - fba_fees
+            total_cost = cost + shipping + fba_fees
+            roi = round(margin / total_cost, 2) if total_cost else 0.0
+            total_profit = round(margin * base_sales, 2)
             results.append(
                 {
-                    "asin": row["asin"],
-                    "original_price": base_price,
+                    "asin": row.get("asin", ""),
+                    "title": row.get("title", ""),
+                    "variation": f"{pct:+.0%}",
                     "new_price": new_price,
-                    "estimated_sales": est_sales,
-                    "new_profit": total_profit,
+                    "margin_per_unit": round(margin, 2),
                     "roi": roi,
+                    "total_profit": total_profit,
                 }
             )
     return results
 
 
+# Saving -----------------------------------------------------------------
+
+def save_results(rows: List[Dict[str, object]], path: str) -> None:
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(
+            f,
+            fieldnames=[
+                "asin",
+                "title",
+                "variation",
+                "new_price",
+                "margin_per_unit",
+                "roi",
+                "total_profit",
+            ],
+        )
+        writer.writeheader()
+        writer.writerows(rows)
+
+
 # Printing ----------------------------------------------------------------
 
-def print_table(rows: List[Dict[str, object]]):
+def print_table(rows: List[Dict[str, object]]) -> None:
     header = (
-        f"{'ASIN':12} | {'Orig Price':>10} | {'New Price':>9} | {'Sales':>6} | {'Profit':>10} | {'ROI':>5}"
+        f"{'ASIN':12} | {'Var':>5} | {'Price':>8} | {'Margin':>8} | {'ROI':>5} | {'Tot Profit':>11}"
     )
     print(header)
     print("-" * len(header))
     for r in rows:
         print(
-            f"{r['asin']:12} | "
-            f"${r['original_price']:>10.2f} | "
-            f"${r['new_price']:>9.2f} | "
-            f"{r['estimated_sales']:>6} | "
-            f"${r['new_profit']:>10.2f} | "
-            f"{r['roi']:>5.2f}"
+            f"{r['asin']:12} | {r['variation']:>5} | ${r['new_price']:>8.2f} | "
+            f"${r['margin_per_unit']:>8.2f} | {r['roi']:>5.2f} | ${r['total_profit']:>11.2f}"
         )
 
 
 # Main --------------------------------------------------------------------
 
 def main() -> None:
-    prof_rows = load_rows(PROFIT_CSV)
-    demand_rows = load_rows(DEMAND_CSV)
-    if not prof_rows:
-        print(f"Input file '{PROFIT_CSV}' not found. Exiting.")
+    rows = load_rows(INPUT_CSV)
+    if not rows:
+        print(
+            f"Input file '{INPUT_CSV}' not found. Run profitability_estimation.py first."
+        )
         return
-    if not demand_rows:
-        print(f"Input file '{DEMAND_CSV}' not found. Exiting.")
+    sims = simulate(rows)
+    if not sims:
+        print("No valid rows found for simulation.")
         return
-    combined = join_data(prof_rows, demand_rows)
-    if not combined:
-        print("No matching products found.")
-        return
-    sims = simulate(combined)
     print_table(sims)
+    save_results(sims, OUTPUT_CSV)
+    print(f"Results saved to {OUTPUT_CSV}")
 
 
 if __name__ == "__main__":
