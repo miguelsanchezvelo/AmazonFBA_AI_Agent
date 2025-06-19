@@ -1,5 +1,7 @@
+import argparse
 import csv
 import os
+from typing import List, Optional
 
 # Define mock market data
 mock_products = [
@@ -125,9 +127,19 @@ mock_products = [
     },
 ]
 
-def main() -> None:
-    os.makedirs("data", exist_ok=True)
-    output_file = os.path.join("data", "mock_market_data.csv")
+def main(argv: Optional[List[str]] = None) -> None:
+    parser = argparse.ArgumentParser(
+        description="Create a CSV file with mock market data"
+    )
+    parser.add_argument(
+        "--output",
+        default=os.path.join("data", "mock_market_data.csv"),
+        help="Path to save the generated CSV",
+    )
+    args = parser.parse_args(argv)
+
+    os.makedirs(os.path.dirname(args.output), exist_ok=True)
+    output_file = args.output
     with open(output_file, "w", newline="", encoding="utf-8") as csvfile:
         writer = csv.DictWriter(
             csvfile,

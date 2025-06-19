@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import argparse
 import email
 import imaplib
 import json
@@ -10,9 +11,12 @@ import smtplib
 from email.header import decode_header
 from email.message import EmailMessage
 from email.utils import parseaddr
-from typing import List, Tuple
+from typing import List, Tuple, Optional
 
-from dotenv import load_dotenv
+try:
+    from dotenv import load_dotenv
+except Exception:  # pragma: no cover - optional dependency
+    load_dotenv = lambda: None  # type: ignore
 
 try:
     from openai import OpenAI
@@ -151,12 +155,22 @@ def log_entry(
         f.write("-" * 40 + "\n")
 
 
-def main() -> None:
+def main(argv: Optional[List[str]] = None) -> None:
+    parser = argparse.ArgumentParser(
+        description="Process supplier emails and draft or send replies"
+    )
+    parser.add_argument(
+        "--auto-reply",
+        action="store_true",
+        help="Automatically send replies instead of printing drafts",
+    )
+    args = parser.parse_args(argv)
+
     load_dotenv()
 
     email_addr = os.getenv("EMAIL_ADDRESS")
     password = os.getenv("EMAIL_PASSWORD")
-    auto_reply = os.getenv("AUTO_REPLY", "false").lower() in {"1", "true", "yes"}
+    auto_reply = args.auto_reply or os.getenv("AUTO_REPLY", "false").lower() in {"1", "true", "yes"}
     api_key = os.getenv("OPENAI_API_KEY")
     model = os.getenv("OPENAI_MODEL", "gpt-4")
 

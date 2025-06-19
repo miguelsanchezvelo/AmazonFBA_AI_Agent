@@ -1,3 +1,4 @@
+import argparse
 import csv
 import os
 from typing import List, Dict, Optional
@@ -124,7 +125,27 @@ def print_table(rows: List[Dict[str, str]]):
             )
 
 
-def main() -> None:
+def main(argv: Optional[List[str]] = None) -> None:
+    global INPUT_CSV, OUTPUT_CSV
+
+    parser = argparse.ArgumentParser(
+        description="Estimate product demand from market analysis data"
+    )
+    parser.add_argument(
+        "--input",
+        default=INPUT_CSV,
+        help="Path to market analysis CSV file",
+    )
+    parser.add_argument(
+        "--output",
+        default=OUTPUT_CSV,
+        help="Where to save demand forecast results",
+    )
+    args = parser.parse_args(argv)
+
+    INPUT_CSV = args.input
+    OUTPUT_CSV = args.output
+
     rows = choose_input()
     results = process(rows)
     print_table(results)

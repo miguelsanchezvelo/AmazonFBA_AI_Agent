@@ -15,8 +15,16 @@ import csv
 import os
 from typing import Dict, List
 
-from dotenv import load_dotenv
-from openai import OpenAI, OpenAIError
+try:
+    from dotenv import load_dotenv
+except Exception:  # pragma: no cover - optional dependency
+    load_dotenv = lambda: None  # type: ignore
+
+try:
+    from openai import OpenAI, OpenAIError
+except Exception:  # pragma: no cover - optional dependency
+    OpenAI = None  # type: ignore
+    OpenAIError = Exception  # type: ignore
 
 
 INPUT_CSV = os.path.join("data", "supplier_selection_results.csv")

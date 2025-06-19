@@ -1,13 +1,17 @@
 """Send supplier contact emails and log interactions."""
 
+import argparse
 import csv
 import os
 import smtplib
 from datetime import datetime
 from email.message import EmailMessage
-from typing import Dict, List
+from typing import Dict, List, Optional
 
-from dotenv import load_dotenv
+try:
+    from dotenv import load_dotenv
+except Exception:  # pragma: no cover - optional dependency
+    load_dotenv = lambda: None  # type: ignore
 
 CONTACT_DIR = os.path.join("data", "supplier_contacts")
 LOG_CSV = os.path.join("data", "supplier_contact_log.csv")
@@ -80,8 +84,8 @@ def save_log(rows: List[Dict[str, str]]) -> None:
         writer.writerows(rows)
 
 
-def send_email(subject: str, body: str) -> None:
-    if TEST_MODE:
+def send_email(subject: str, body: str, test_mode: bool = TEST_MODE) -> None:
+    if test_mode:
         print(f"[TEST MODE] Would send email to {EMAIL_TO} with subject '{subject}'")
         return
     msg = EmailMessage()
@@ -98,7 +102,7 @@ def send_email(subject: str, body: str) -> None:
         print(f"Error sending email: {exc}")
 
 
-def process_files() -> None:
+def process_files(test_mode: bool = TEST_MODE) -> None:
     files = list_contact_files()
     if not files:
         print(f"No contact files found in '{CONTACT_DIR}'.")
@@ -111,7 +115,7 @@ def process_files() -> None:
         if asin in existing_asins:
             continue
         title = data["title"]
-        send_email(f"Supplier inquiry for {asin}", data["message"])
+        send_email(f"Supplier inquiry for {asin}", data["message"], test_mode)
         now = datetime.utcnow().strftime("%Y-%m-%d")
         log_rows.append(
             {
@@ -119,7 +123,7 @@ def process_files() -> None:
                 "Title": title,
                 "Date Sent": now,
                 "Email Sent To": EMAIL_TO,
-                "Status": "sent" if not TEST_MODE else "pending",
+                "Status": "sent" if not test_mode else "pending",
                 "Response Date": "",
                 "Notes": "",
             }
@@ -128,5 +132,19 @@ def process_files() -> None:
     print(f"Logged {len(log_rows)} contacts to {LOG_CSV}")
 
 
+def main(argv: Optional[List[str]] = None) -> None:
+    parser = argparse.ArgumentParser(
+        description="Send supplier contact emails and log them"
+    )
+    parser.add_argument(
+        "--send",
+        action="store_true",
+        help="Actually send emails instead of test mode",
+    )
+    args = parser.parse_args(argv)
+
+    process_files(test_mode=not args.send)
+
+
 if __name__ == "__main__":
-    process_files()
+    main()

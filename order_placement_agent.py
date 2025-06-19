@@ -348,10 +348,6 @@ if __name__ == "__main__":
         parser.print_help()
         if MISSING_PKGS:
             print(f"\n⚠️ Missing packages: {', '.join(MISSING_PKGS)}")
-            if sys.stdin.isatty():
-                choice = input("Install them now? [Y/n] ").strip().lower()
-                if choice in ("", "y", "yes"):
-                    install_packages(MISSING_PKGS)
         sys.exit(0)
 
     args = parser.parse_args()

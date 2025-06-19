@@ -1,11 +1,19 @@
 """Generate supplier quote request messages using OpenAI's Chat API."""
 
+import argparse
 import json
 import os
-from typing import List, Dict
+from typing import List, Dict, Optional
 
-import openai
-from dotenv import load_dotenv
+try:
+    import openai
+except Exception:  # pragma: no cover - optional dependency
+    openai = None  # type: ignore
+
+try:
+    from dotenv import load_dotenv
+except Exception:  # pragma: no cover - optional dependency
+    load_dotenv = lambda: None  # type: ignore
 
 
 INPUT_JSON = os.path.join("data", "supplier_contact_requests.json")
@@ -60,7 +68,27 @@ def generate_message(units: int, title: str) -> str:
     return content.strip()
 
 
-def main() -> None:
+def main(argv: Optional[List[str]] = None) -> None:
+    global INPUT_JSON, OUTPUT_JSON
+
+    parser = argparse.ArgumentParser(
+        description="Generate supplier quote request messages using OpenAI"
+    )
+    parser.add_argument(
+        "--input",
+        default=INPUT_JSON,
+        help="Input JSON file with supplier requests",
+    )
+    parser.add_argument(
+        "--output",
+        default=OUTPUT_JSON,
+        help="Where to save generated messages",
+    )
+    args = parser.parse_args(argv)
+
+    INPUT_JSON = args.input
+    OUTPUT_JSON = args.output
+
     load_dotenv()
     key = os.getenv("OPENAI_API_KEY")
     if not key:
