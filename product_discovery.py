@@ -19,7 +19,16 @@ except Exception:  # pragma: no cover - optional dependency
     GoogleSearch = None  # type: ignore
 
 load_dotenv()
-API_KEY = os.getenv("SERPAPI_API_KEY", "")
+API_KEY: Optional[str] | None = None
+
+
+def get_api_key() -> Optional[str]:
+    """Return the cached SerpAPI key after loading ``.env`` if needed."""
+
+    global API_KEY
+    if API_KEY is None:
+        API_KEY = os.getenv("SERPAPI_API_KEY")
+    return API_KEY
 
 CATEGORIES = ["kitchen", "fitness", "pets", "baby", "home"]
 DATA_PATH = os.path.join("data", "product_results.csv")
@@ -60,12 +69,17 @@ def is_asin_format(asin: str) -> bool:
 
 def search_similar_asin(title: str, verbose: bool = False) -> Optional[str]:
     """Search Amazon for the given title and return first valid ASIN."""
+    key = get_api_key()
+    if not key:
+        if verbose:
+            print("SERPAPI_API_KEY not configured")
+        return None
     params = {
         "engine": "amazon",
         "type": "search",
         "amazon_domain": "amazon.com",
         "k": title,
-        "api_key": API_KEY,
+        "api_key": key,
     }
     try:
         search = GoogleSearch(params)
@@ -89,6 +103,9 @@ def log_skipped(reason: str, item: Dict):
 
 
 def search_category(keyword: str, pages: int = 3, debug: bool = False) -> List[Dict]:
+    key = get_api_key()
+    if not key:
+        raise RuntimeError("SERPAPI_API_KEY not configured")
     results = []
     for page in range(1, pages + 1):
         params = {
@@ -97,7 +114,7 @@ def search_category(keyword: str, pages: int = 3, debug: bool = False) -> List[D
             "amazon_domain": "amazon.com",
             "k": keyword,
             "page": page,
-            "api_key": API_KEY,
+            "api_key": key,
         }
         search = GoogleSearch(params)
         data = search.get_dict()
