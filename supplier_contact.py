@@ -1,3 +1,4 @@
+import argparse
 import csv
 import os
 import re
@@ -46,7 +47,27 @@ def email_template(title: str) -> str:
     )
 
 
-def main() -> None:
+def main(argv: Optional[List[str]] = None) -> None:
+    global INPUT_CSV, OUTPUT_TXT
+
+    parser = argparse.ArgumentParser(
+        description="Generate supplier contact email templates"
+    )
+    parser.add_argument(
+        "--input",
+        default=INPUT_CSV,
+        help="CSV produced by supplier_selection.py",
+    )
+    parser.add_argument(
+        "--output",
+        default=OUTPUT_TXT,
+        help="Where to save the email templates",
+    )
+    args = parser.parse_args(argv)
+
+    INPUT_CSV = args.input
+    OUTPUT_TXT = args.output
+
     rows = load_rows(INPUT_CSV)
     if not rows:
         print(f"Input file '{INPUT_CSV}' not found. Exiting.")

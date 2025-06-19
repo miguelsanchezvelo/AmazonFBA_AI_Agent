@@ -15,7 +15,10 @@ from email.message import EmailMessage
 from email.utils import parseaddr
 from typing import Dict, Iterable, List, Optional, Tuple
 
-from dotenv import load_dotenv
+try:
+    from dotenv import load_dotenv
+except Exception:  # pragma: no cover - optional dependency
+    load_dotenv = lambda: None  # type: ignore
 
 try:
     from openai import OpenAI

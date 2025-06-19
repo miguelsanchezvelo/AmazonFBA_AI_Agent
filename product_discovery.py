@@ -7,13 +7,20 @@ from typing import List, Dict, Optional, Tuple
 from difflib import SequenceMatcher
 import time
 
-from dotenv import load_dotenv
-from serpapi import GoogleSearch
+try:
+    from dotenv import load_dotenv
+except Exception:  # pragma: no cover - optional dependency
+    load_dotenv = lambda: None  # type: ignore
 
-load_dotenv()
-API_KEY = os.getenv("SERPAPI_API_KEY")
-if not API_KEY:
-    raise SystemExit("Fatal: SERPAPI_API_KEY not set in environment")
+API_KEY = None
+
+def get_api_key() -> Optional[str]:
+    global API_KEY
+    if API_KEY is not None:
+        return API_KEY
+    load_dotenv()
+    API_KEY = os.getenv("SERPAPI_API_KEY")
+    return API_KEY
 
 CATEGORIES = ["kitchen", "fitness", "pets", "baby", "home"]
 DATA_PATH = os.path.join("data", "product_results.csv")
@@ -54,12 +61,24 @@ def is_asin_format(asin: str) -> bool:
 
 def search_similar_asin(title: str, verbose: bool = False) -> Optional[str]:
     """Search Amazon for the given title and return first valid ASIN."""
+    key = get_api_key()
+    if not key:
+        if verbose:
+            print("SERPAPI_API_KEY not configured")
+        return None
+    try:
+        from serpapi import GoogleSearch
+    except Exception as exc:  # pragma: no cover - optional dependency
+        if verbose:
+            print(f"SerpAPI import error: {exc}")
+        return None
+
     params = {
         "engine": "amazon",
         "type": "search",
         "amazon_domain": "amazon.com",
         "k": title,
-        "api_key": API_KEY,
+        "api_key": key,
     }
     try:
         search = GoogleSearch(params)
@@ -83,6 +102,11 @@ def log_skipped(reason: str, item: Dict):
 
 
 def search_category(keyword: str, pages: int = 3, debug: bool = False) -> List[Dict]:
+    key = get_api_key()
+    if not key:
+        raise RuntimeError("SERPAPI_API_KEY not configured")
+    from serpapi import GoogleSearch
+
     results = []
     for page in range(1, pages + 1):
         params = {
@@ -91,7 +115,7 @@ def search_category(keyword: str, pages: int = 3, debug: bool = False) -> List[D
             "amazon_domain": "amazon.com",
             "k": keyword,
             "page": page,
-            "api_key": API_KEY,
+            "api_key": key,
         }
         search = GoogleSearch(params)
         data = search.get_dict()

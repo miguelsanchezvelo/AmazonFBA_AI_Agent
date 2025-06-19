@@ -6,9 +6,20 @@ import argparse
 import json
 from typing import List, Dict, Optional, Tuple
 
-import requests
-from dotenv import load_dotenv
-from serpapi import GoogleSearch
+try:
+    import requests
+except Exception:  # pragma: no cover - optional dependency
+    requests = None  # type: ignore
+
+try:
+    from dotenv import load_dotenv
+except Exception:  # pragma: no cover - optional dependency
+    load_dotenv = lambda: None  # type: ignore
+
+try:
+    from serpapi import GoogleSearch
+except Exception:  # pragma: no cover - optional dependency
+    GoogleSearch = None  # type: ignore
 
 load_dotenv()
 

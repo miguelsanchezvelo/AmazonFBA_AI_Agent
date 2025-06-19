@@ -1,6 +1,8 @@
+import argparse
 import os
 import csv
 import re
+from typing import List, Optional
 
 INPUT_CSV = os.path.join("data", "market_analysis_results.csv")
 SUPPLIER_CSV = os.path.join("data", "supplier_data.csv")
@@ -101,7 +103,33 @@ def print_top_products(rows, count=5):
         )
 
 
-def main():
+def main(argv: Optional[List[str]] = None) -> None:
+    global INPUT_CSV, SUPPLIER_CSV, OUTPUT_CSV
+
+    parser = argparse.ArgumentParser(
+        description="Estimate profitability of products"
+    )
+    parser.add_argument(
+        "--input",
+        default=INPUT_CSV,
+        help="Path to market analysis CSV",
+    )
+    parser.add_argument(
+        "--supplier-costs",
+        default=SUPPLIER_CSV,
+        help="CSV file with supplier costs",
+    )
+    parser.add_argument(
+        "--output",
+        default=OUTPUT_CSV,
+        help="Where to save profitability results",
+    )
+    args = parser.parse_args(argv)
+
+    INPUT_CSV = args.input
+    SUPPLIER_CSV = args.supplier_costs
+    OUTPUT_CSV = args.output
+
     market_data = load_market_data(INPUT_CSV)
     if not market_data:
         return

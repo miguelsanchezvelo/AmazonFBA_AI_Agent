@@ -1,3 +1,4 @@
+import argparse
 import csv
 import os
 from typing import List, Dict, Optional
@@ -95,7 +96,27 @@ def print_table(rows: List[Dict[str, object]]) -> None:
         )
 
 
-def main() -> None:
+def main(argv: Optional[List[str]] = None) -> None:
+    global INPUT_CSV, OUTPUT_CSV
+
+    parser = argparse.ArgumentParser(
+        description="Generate inventory recommendations based on supplier selections"
+    )
+    parser.add_argument(
+        "--input",
+        default=INPUT_CSV,
+        help="CSV with supplier selections",
+    )
+    parser.add_argument(
+        "--output",
+        default=OUTPUT_CSV,
+        help="Where to save inventory recommendations",
+    )
+    args = parser.parse_args(argv)
+
+    INPUT_CSV = args.input
+    OUTPUT_CSV = args.output
+
     rows = load_rows(INPUT_CSV)
     if not rows:
         return

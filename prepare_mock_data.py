@@ -1,6 +1,8 @@
+import argparse
 import os
 import csv
 import json
+from typing import List, Optional
 
 CONFIG_FILE = "config.json"
 DATA_DIR = "data"
@@ -132,7 +134,16 @@ def create_mock_csv() -> None:
     print(f"Mock data created at {CSV_FILE} for offline mode.")
 
 
-def main() -> None:
+def main(argv: Optional[List[str]] = None) -> None:
+    global CONFIG_FILE, CSV_FILE
+
+    parser = argparse.ArgumentParser(description="Generate local mock data if APIs are unavailable")
+    parser.add_argument("--config", default=CONFIG_FILE, help="Path to optional config JSON")
+    parser.add_argument("--output", default=CSV_FILE, help="Output CSV file")
+    args = parser.parse_args(argv)
+    CONFIG_FILE = args.config
+    CSV_FILE = args.output
+
     serp, keepa = load_keys()
     if serp or keepa:
         print("APIs available — mock data generation skipped.")

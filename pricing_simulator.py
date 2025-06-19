@@ -1,12 +1,20 @@
 """ChatGPT-based pricing optimization for FBA products."""
 
+import argparse
 import csv
 import os
 import re
 from typing import Dict, List, Optional, Tuple
 
-from dotenv import load_dotenv
-from openai import OpenAI
+try:
+    from dotenv import load_dotenv
+except Exception:  # pragma: no cover - optional dependency
+    load_dotenv = lambda: None  # type: ignore
+
+try:
+    from openai import OpenAI
+except Exception:  # pragma: no cover - optional dependency
+    OpenAI = None  # type: ignore
 
 SYSTEM_PROMPT = (
     "You are an Amazon pricing consultant who gives short, actionable advice "
@@ -114,7 +122,26 @@ def analyze_product(client: OpenAI, model: str, row: Dict[str, str]) -> Tuple[st
     return (f"${suggested_price:.2f}" if suggested_price is not None else "", answer)
 
 
-def main() -> None:
+def main(argv: Optional[List[str]] = None) -> None:
+    global INPUT_CSV, OUTPUT_CSV
+
+    parser = argparse.ArgumentParser(
+        description="Get ChatGPT pricing suggestions for top products"
+    )
+    parser.add_argument(
+        "--input",
+        default=INPUT_CSV,
+        help="CSV with profitability results",
+    )
+    parser.add_argument(
+        "--output",
+        default=OUTPUT_CSV,
+        help="Where to save pricing suggestions",
+    )
+    args = parser.parse_args(argv)
+    INPUT_CSV = args.input
+    OUTPUT_CSV = args.output
+
     load_dotenv()
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:

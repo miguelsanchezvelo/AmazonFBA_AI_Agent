@@ -8,6 +8,7 @@ Development mode: if input CSV files are missing, minimal mock data will be
 created for testing purposes.
 """
 
+import argparse
 import csv
 import os
 import re
@@ -215,7 +216,27 @@ def print_table(rows: List[Dict[str, object]], totals):
 
 # Main -----------------------------------------------------------------
 
-def main() -> None:
+def main(argv: Optional[List[str]] = None) -> None:
+    global OUTPUT_CSV
+
+    parser = argparse.ArgumentParser(
+        description="Select products to order based on profitability and demand"
+    )
+    parser.add_argument(
+        "--budget",
+        type=float,
+        default=None,
+        help="Total budget in USD (otherwise prompted)",
+    )
+    parser.add_argument(
+        "--output",
+        default=OUTPUT_CSV,
+        help="Where to save the selection CSV",
+    )
+    args = parser.parse_args(argv)
+
+    OUTPUT_CSV = args.output
+
     ensure_mock_data()
     profit_rows = load_rows(PROFITABILITY_CSV)
     demand_rows = load_rows(DEMAND_CSV)
@@ -225,10 +246,13 @@ def main() -> None:
     combined = join_data(profit_rows, demand_rows)
     combined = [r for r in combined if str(r.get("demand_level")) in ("MEDIUM", "HIGH")]
     combined.sort(key=lambda x: parse_float(x.get("roi")) or 0.0, reverse=True)
-    try:
-        budget = float(input("Enter total budget in USD: "))
-    except Exception:
-        budget = 1000.0
+    if args.budget is not None:
+        budget = args.budget
+    else:
+        try:
+            budget = float(input("Enter total budget in USD: "))
+        except Exception:
+            budget = 1000.0
     results, total_cost, total_profit, overall_roi = allocate_budget(combined, budget)
     print_table(results, (total_cost, total_profit, overall_roi))
     save_csv(
