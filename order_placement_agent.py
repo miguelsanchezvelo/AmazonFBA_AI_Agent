@@ -1,17 +1,24 @@
 import csv
+import json
 import os
 import re
 import smtplib
 from datetime import datetime
 from email.message import EmailMessage
-from typing import Dict, List
+from typing import Dict, List, Tuple
 
 from dotenv import load_dotenv
 
 PRODUCT_CSV = os.path.join("data", "supplier_selection_results.csv")
 MESSAGES_DIR = "supplier_messages"
-LOG_FILE = "order_log.txt"
+LOG_CSV = os.path.join("data", "order_placement_log.csv")
+TMP_DIR = os.path.join("data", "edited_messages")
+CONFIG_JSON = "config.json"
 
+
+# ---------------------------------------------------------------------------
+# Utility functions
+# ---------------------------------------------------------------------------
 
 def parse_int(val: str | None) -> int:
     if val is None:
@@ -48,11 +55,55 @@ def extract_email(text: str) -> str | None:
     return match.group(0) if match else None
 
 
-def log_action(action: str, asin: str, note: str = "") -> None:
-    timestamp = datetime.utcnow().isoformat()
-    with open(LOG_FILE, "a", encoding="utf-8") as f:
-        f.write(f"{timestamp} | {action} | {asin} | {note}\n")
+def load_credentials() -> Tuple[str | None, str | None, str, int]:
+    load_dotenv()
+    config: Dict[str, str] = {}
+    if os.path.exists(CONFIG_JSON):
+        try:
+            with open(CONFIG_JSON, "r", encoding="utf-8") as f:
+                config = json.load(f)
+        except Exception:
+            config = {}
 
+    def get(name: str, default: str | None = None) -> str | None:
+        return os.getenv(name) or config.get(name.lower()) or config.get(name) or default
+
+    email_addr = get("EMAIL_ADDRESS")
+    password = get("EMAIL_PASSWORD")
+    smtp_server = get("SMTP_SERVER", "smtp.gmail.com") or "smtp.gmail.com"
+    smtp_port = int(get("SMTP_PORT", "587") or 587)
+    return email_addr, password, smtp_server, smtp_port
+
+
+# ---------------------------------------------------------------------------
+# Logging
+# ---------------------------------------------------------------------------
+
+def log_row(action: str, asin: str, units: int, recipient: str, message: str) -> None:
+    os.makedirs(os.path.dirname(LOG_CSV), exist_ok=True)
+    write_header = not os.path.exists(LOG_CSV)
+    with open(LOG_CSV, "a", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(
+            f,
+            fieldnames=["timestamp", "action", "asin", "units", "recipient", "message"],
+        )
+        if write_header:
+            writer.writeheader()
+        writer.writerow(
+            {
+                "timestamp": datetime.utcnow().isoformat(),
+                "action": action,
+                "asin": asin,
+                "units": units,
+                "recipient": recipient,
+                "message": message,
+            }
+        )
+
+
+# ---------------------------------------------------------------------------
+# Email sending
+# ---------------------------------------------------------------------------
 
 def send_email(
     smtp_server: str,
@@ -68,94 +119,114 @@ def send_email(
     msg["From"] = email_addr
     msg["To"] = to_addr
     msg.set_content(body)
-    with smtplib.SMTP(smtp_server, smtp_port) as s:
-        s.starttls()
-        s.login(email_addr, password)
-        s.send_message(msg)
+    with smtplib.SMTP(smtp_server, smtp_port) as smtp:
+        smtp.starttls()
+        smtp.login(email_addr, password)
+        smtp.send_message(msg)
 
 
-def main() -> None:
-    load_dotenv()
-    email_addr = os.getenv("EMAIL_ADDRESS")
-    password = os.getenv("EMAIL_PASSWORD")
-    smtp_server = os.getenv("SMTP_SERVER", "smtp.gmail.com")
-    smtp_port = int(os.getenv("SMTP_PORT", "587"))
+# ---------------------------------------------------------------------------
+# Interactive workflow
+# ---------------------------------------------------------------------------
 
+def edit_message(original: str, asin: str) -> str:
+    choice = input("Edit message before sending? [y/N] ").strip().lower()
+    if choice != "y":
+        return original
+
+    print("Enter new message. Finish with a single '.' on a line:")
+    lines: List[str] = []
+    while True:
+        line = input()
+        if line == ".":
+            break
+        lines.append(line)
+    new_msg = "\n".join(lines).strip()
+    if not new_msg:
+        return original
+
+    os.makedirs(TMP_DIR, exist_ok=True)
+    fname = os.path.join(TMP_DIR, f"{asin}_{int(datetime.utcnow().timestamp())}.txt")
+    with open(fname, "w", encoding="utf-8") as f:
+        f.write(new_msg)
+    print(f"Edited message saved to {fname}")
+    log_row("edited", asin, 0, "", fname)
+    return new_msg
+
+
+def process_orders() -> None:
+    email_addr, password, smtp_server, smtp_port = load_credentials()
     if not email_addr or not password:
-        print("Missing email credentials in .env. Exiting.")
+        print("Missing email credentials. Exiting.")
         return
 
     products = load_products(PRODUCT_CSV)
     if not products:
         return
 
-    ordered: List[str] = []
-    skipped: List[str] = []
-    errors: List[str] = []
-
     for row in products:
         asin = row.get("asin", "").strip()
         title = row.get("title", "").strip()
         units = parse_int(row.get("units_to_order") or row.get("Units"))
         total_cost = parse_float(row.get("total_cost"))
-        roi = parse_float(row.get("roi"))
-        demand = row.get("demand") or row.get("demand_level") or ""
 
         if units <= 0:
             continue
 
-        msg_text = load_message(asin)
-        if not msg_text:
-            print(f"⚠️ No supplier message found for {asin}. Skipping.")
-            log_action("missing_message", asin)
-            skipped.append(asin)
+        message = load_message(asin)
+        if not message:
+            print(f"⚠️ Supplier message for {asin} missing.")
+            log_row("missing_message", asin, units, "", "")
             continue
 
-        supplier_email = extract_email(msg_text) or "Unknown"
-        print("\n" + "-" * 60)
+        supplier_email = extract_email(message) or ""
+
+        print("-" * 60)
         print(f"ASIN: {asin}")
         print(f"Title: {title}")
-        print(f"Units: {units}")
-        print(f"Total Cost: ${total_cost:.2f}")
-        print(f"Supplier Email: {supplier_email}")
-        print("Message:\n" + msg_text)
-        print(
-            f"Justification: Demand {demand} and ROI {roi:.2f} make this product a suitable investment."
-        )
-        print(f"Contacting supplier extracted from message: {supplier_email}")
-        choice = input("Send this order request email? [y/N] ").strip().lower()
-        if choice != "y":
+        print(f"Units to order: {units}")
+        print(f"Total cost: ${total_cost:.2f}")
+        print(f"Supplier email: {supplier_email}")
+        print("Message:\n" + message)
+        choice = input("Contact this supplier? [Y/n] ").strip().lower()
+        if choice == "n":
             print("Skipped.")
-            log_action("skipped", asin)
-            skipped.append(asin)
+            log_row("skipped", asin, units, supplier_email, "")
             continue
 
-        try:
-            send_email(
-                smtp_server,
-                smtp_port,
-                email_addr,
-                password,
-                supplier_email,
-                f"Purchase Order Request for {asin}",
-                msg_text,
-            )
-            print("Email sent.")
-            log_action("sent", asin, supplier_email)
-            ordered.append(asin)
-        except Exception as exc:
-            print(f"Error sending email for {asin}: {exc}")
-            log_action("error", asin, str(exc))
-            errors.append(asin)
+        msg_body = edit_message(message, asin)
+        confirm = input("Send email now? [Y/n] ").strip().lower()
+        if confirm == "n":
+            print("Send cancelled.")
+            log_row("cancelled", asin, units, supplier_email, msg_body)
+            continue
 
-    print("\n" + "=" * 60)
-    print("Summary:")
-    print(f"Ordered: {', '.join(ordered) if ordered else 'None'}")
-    print(f"Skipped: {', '.join(skipped) if skipped else 'None'}")
-    if errors:
-        print(f"Errors: {', '.join(errors)}")
-    print(f"Log written to {LOG_FILE}")
+        attempts = 0
+        while attempts < 3:
+            try:
+                send_email(
+                    smtp_server,
+                    smtp_port,
+                    email_addr,
+                    password,
+                    supplier_email,
+                    f"Purchase Order Request for {asin}",
+                    msg_body,
+                )
+                print("Email sent.")
+                log_row("sent", asin, units, supplier_email, msg_body)
+                break
+            except Exception as exc:
+                attempts += 1
+                print(f"Error sending email: {exc}")
+                log_row("error", asin, units, supplier_email, str(exc))
+                if attempts >= 3:
+                    print("Giving up on this email.")
+                    break
+                retry = input("Retry sending? [y/N] ").strip().lower()
+                if retry != "y":
+                    break
 
 
 if __name__ == "__main__":
-    main()
+    process_orders()
