@@ -11,8 +11,20 @@ import time
 from typing import Dict, List, Tuple
 import imaplib
 
-from colorama import Fore, Style, init as colorama_init
-from dotenv import load_dotenv
+try:
+    from colorama import Fore, Style, init as colorama_init
+except Exception:  # pragma: no cover - optional dependency
+    class _Dummy:
+        RESET = ""
+    Fore = Style = _Dummy()
+    def colorama_init(*_args, **_kwargs):
+        pass
+
+try:
+    from dotenv import load_dotenv
+except Exception:  # pragma: no cover - optional dependency
+    def load_dotenv(*_args, **_kwargs):
+        pass
 
 
 DATA_DIR = "data"

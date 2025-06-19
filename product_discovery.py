@@ -7,13 +7,19 @@ from typing import List, Dict, Optional, Tuple
 from difflib import SequenceMatcher
 import time
 
-from dotenv import load_dotenv
-from serpapi import GoogleSearch
+try:
+    from dotenv import load_dotenv
+except Exception:  # pragma: no cover - optional dependency
+    def load_dotenv(*_args, **_kwargs):
+        pass
+
+try:
+    from serpapi import GoogleSearch
+except Exception:  # pragma: no cover - optional dependency
+    GoogleSearch = None  # type: ignore
 
 load_dotenv()
-API_KEY = os.getenv("SERPAPI_API_KEY")
-if not API_KEY:
-    raise SystemExit("Fatal: SERPAPI_API_KEY not set in environment")
+API_KEY = os.getenv("SERPAPI_API_KEY", "")
 
 CATEGORIES = ["kitchen", "fitness", "pets", "baby", "home"]
 DATA_PATH = os.path.join("data", "product_results.csv")

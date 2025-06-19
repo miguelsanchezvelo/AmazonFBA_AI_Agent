@@ -5,8 +5,16 @@ import os
 import re
 from typing import Dict, List, Optional, Tuple
 
-from dotenv import load_dotenv
-from openai import OpenAI
+try:
+    from dotenv import load_dotenv
+except Exception:  # pragma: no cover - optional dependency
+    def load_dotenv(*_args, **_kwargs):
+        pass
+
+try:
+    from openai import OpenAI
+except Exception:  # pragma: no cover - optional dependency
+    OpenAI = None  # type: ignore
 
 SYSTEM_PROMPT = (
     "You are an Amazon pricing consultant who gives short, actionable advice "

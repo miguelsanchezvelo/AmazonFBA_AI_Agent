@@ -40,6 +40,7 @@ def run_command(cmd: List[str]) -> Tuple[bool, str]:
             capture_output=True,
             text=True,
             timeout=20,
+            stdin=subprocess.DEVNULL,
         )
         out = res.stdout + res.stderr
         return res.returncode == 0, out
