@@ -15,6 +15,7 @@ SCRIPTS = [
     "supplier_contact_generator.py",
     "pricing_simulator.py",
     "inventory_management.py",
+    "email_monitor.py",
     "order_placement_agent.py",
     "fba_agent.py",
 ]
