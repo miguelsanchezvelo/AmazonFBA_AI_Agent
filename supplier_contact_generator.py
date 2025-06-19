@@ -1,9 +1,11 @@
 """Generate supplier inquiry messages using OpenAI's Chat API.
 
 This script reads products from ``data/supplier_selection_results.csv`` and
-creates one text file per ASIN inside ``supplier_messages/``. The prompt sent to
-OpenAI is loaded from ``template.txt`` which should contain ``{title}`` and
-``{asin}`` placeholders. Messages are generated in English only.
+creates one text file per ASIN inside ``supplier_messages/``.
+The prompt sent to OpenAI is loaded from a template file which contains
+``{title}`` and ``{asin}`` placeholders.  By default ``template.txt`` is used,
+but alternative files such as ``template_es_formal.txt`` or
+``template_en_informal.txt`` can be selected via command line options.
 """
 
 from __future__ import annotations
@@ -58,12 +60,15 @@ def load_products(path: str) -> List[Dict[str, str]]:
 
 
 def load_template(path: str) -> str:
-    """Return template contents or raise FileNotFoundError."""
+    """Return template contents ensuring required placeholders."""
 
     if not os.path.exists(path):
         raise FileNotFoundError(f"Template file '{path}' not found.")
     with open(path, "r", encoding="utf-8") as f:
-        return f.read()
+        content = f.read()
+    if "{title}" not in content or "{asin}" not in content:
+        raise ValueError("Template missing required {title} or {asin} placeholders")
+    return content
 
 
 def generate_message(
@@ -101,7 +106,17 @@ def log_error(asin: str, title: str, error: Exception) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Generate supplier messages")
-    parser.parse_args()
+    parser.add_argument(
+        "--lang",
+        default="en",
+        help="Language code for the template (e.g. 'en', 'es')",
+    )
+    parser.add_argument(
+        "--tone",
+        default="formal",
+        help="Tone of the template (e.g. 'formal', 'informal')",
+    )
+    args = parser.parse_args()
 
     load_dotenv()
 
@@ -127,6 +142,12 @@ def main() -> None:
         print("No products with assigned units found.")
         return
 
+    template_file = (
+        TEMPLATE_FILE
+        if args.lang == "en" and args.tone == "formal"
+        else f"template_{args.lang}_{args.tone}.txt"
+    )
+
     os.makedirs(OUTPUT_DIR, exist_ok=True)
 
     success = 0
@@ -136,7 +157,7 @@ def main() -> None:
         asin = prod["asin"]
         title = prod["title"]
         try:
-            template = load_template(TEMPLATE_FILE)
+            template = load_template(template_file)
         except Exception as exc:
             print(f"Template error for {asin}: {exc}")
             log_error(asin, title, exc)
