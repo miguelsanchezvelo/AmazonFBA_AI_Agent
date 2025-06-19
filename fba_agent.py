@@ -14,16 +14,19 @@ import imaplib
 try:
     from colorama import Fore, Style, init as colorama_init
 except Exception:  # pragma: no cover - optional dependency
-    class _Dummy:
-        RESET = ""
-    Fore = Style = _Dummy()
-    def colorama_init(*_args, **_kwargs):
+    class Fore:  # type: ignore
+        RED = GREEN = YELLOW = ""
+
+    class Style:  # type: ignore
+        RESET_ALL = ""
+
+    def colorama_init() -> None:  # type: ignore
         pass
 
 try:
     from dotenv import load_dotenv
 except Exception:  # pragma: no cover - optional dependency
-    def load_dotenv(*_args, **_kwargs):
+    def load_dotenv(*_args, **_kwargs) -> None:
         pass
 
 
