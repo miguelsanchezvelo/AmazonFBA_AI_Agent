@@ -1,7 +1,21 @@
 import argparse
 import csv
 import os
-from typing import List, Dict, Optional
+import time
+from typing import List, Dict, Optional, Set
+
+LOG_FILE = "log.txt"
+
+
+def log(msg: str) -> None:
+    ts = time.strftime("%Y-%m-%d %H:%M:%S")
+    try:
+        with open(LOG_FILE, "a", encoding="utf-8") as f:
+            f.write(f"{ts} {msg}\n")
+    except Exception:
+        pass
+
+PRODUCT_CSV = os.path.join("data", "product_results.csv")
 
 try:
     from tabulate import tabulate
@@ -12,6 +26,18 @@ except ImportError:  # pragma: no cover - optional dependency
 INPUT_CSV = os.path.join("data", "market_analysis_results.csv")
 MOCK_CSV = os.path.join("data", "mock_market_data.csv")
 OUTPUT_CSV = os.path.join("data", "demand_forecast_results.csv")
+
+
+def load_valid_asins() -> Set[str]:
+    if not os.path.exists(PRODUCT_CSV):
+        return set()
+    with open(PRODUCT_CSV, newline="", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        return {
+            row.get("asin") or row.get("estimated_asin")
+            for row in reader
+            if row.get("asin") or row.get("estimated_asin")
+        }
 
 
 def parse_bsr(value: Optional[str]) -> Optional[int]:
@@ -62,9 +88,13 @@ def choose_input() -> List[Dict[str, str]]:
 
 
 def process(rows: List[Dict[str, str]]) -> List[Dict[str, str]]:
+    valid = load_valid_asins()
     results: List[Dict[str, str]] = []
     for row in rows:
         asin = row.get("asin", "")
+        if valid and asin and asin not in valid:
+            log(f"demand_forecast: unknown ASIN {asin}")
+            continue
         title = row.get("title", "")
         bsr = parse_bsr(row.get("bsr"))
         sales = estimate_sales(bsr)

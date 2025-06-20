@@ -12,7 +12,21 @@ import argparse
 import csv
 import os
 import re
-from typing import Dict, List, Optional
+import time
+from typing import Dict, List, Optional, Set
+
+LOG_FILE = "log.txt"
+
+
+def log(msg: str) -> None:
+    ts = time.strftime("%Y-%m-%d %H:%M:%S")
+    try:
+        with open(LOG_FILE, "a", encoding="utf-8") as f:
+            f.write(f"{ts} {msg}\n")
+    except Exception:
+        pass
+
+PRODUCT_CSV = os.path.join("data", "product_results.csv")
 
 PROFITABILITY_CSV = os.path.join("data", "profitability_estimation_results.csv")
 DEMAND_CSV = os.path.join("data", "demand_forecast_results.csv")
@@ -39,6 +53,18 @@ def parse_int(val: Optional[str]) -> Optional[int]:
         return val
     m = re.search(r"\d+", str(val))
     return int(m.group()) if m else None
+
+
+def load_valid_asins() -> Set[str]:
+    if not os.path.exists(PRODUCT_CSV):
+        return set()
+    with open(PRODUCT_CSV, newline="", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        return {
+            row.get("asin") or row.get("estimated_asin")
+            for row in reader
+            if row.get("asin") or row.get("estimated_asin")
+        }
 
 
 def load_rows(path: str) -> List[Dict[str, str]]:
@@ -129,10 +155,14 @@ def ensure_mock_data():
 # Core logic ------------------------------------------------------------
 
 def join_data(profit_rows: List[Dict[str, str]], demand_rows: List[Dict[str, str]]):
+    valid = load_valid_asins()
     demand_map = {r["asin"]: r for r in demand_rows}
     combined: List[Dict[str, object]] = []
     for p in profit_rows:
         asin = p.get("asin") or ""
+        if valid and asin and asin not in valid:
+            log(f"supplier_selection: unknown ASIN {asin}")
+            continue
         d = demand_map.get(asin)
         if not d:
             continue

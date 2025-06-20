@@ -1,10 +1,36 @@
 import argparse
 import csv
 import os
-from typing import List, Dict, Optional
+import time
+from typing import List, Dict, Optional, Set
+
+LOG_FILE = "log.txt"
+
+
+def log(msg: str) -> None:
+    ts = time.strftime("%Y-%m-%d %H:%M:%S")
+    try:
+        with open(LOG_FILE, "a", encoding="utf-8") as f:
+            f.write(f"{ts} {msg}\n")
+    except Exception:
+        pass
+
+PRODUCT_CSV = os.path.join("data", "product_results.csv")
 
 INPUT_CSV = os.path.join("data", "supplier_selection_results.csv")
 OUTPUT_CSV = os.path.join("data", "inventory_management_results.csv")
+
+
+def load_valid_asins() -> Set[str]:
+    if not os.path.exists(PRODUCT_CSV):
+        return set()
+    with open(PRODUCT_CSV, newline="", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        return {
+            row.get("asin") or row.get("estimated_asin")
+            for row in reader
+            if row.get("asin") or row.get("estimated_asin")
+        }
 
 
 def parse_float(val: Optional[str]) -> Optional[float]:
@@ -40,7 +66,18 @@ def load_rows(path: str) -> List[Dict[str, str]]:
         print(f"Input file '{path}' not found")
         return []
     with open(path, newline="", encoding="utf-8") as f:
-        return list(csv.DictReader(f))
+        rows = list(csv.DictReader(f))
+    valid = load_valid_asins()
+    if valid:
+        filtered = []
+        for r in rows:
+            asin = (r.get("asin") or "").strip()
+            if asin and asin not in valid:
+                log(f"inventory_management: unknown ASIN {asin}")
+                continue
+            filtered.append(r)
+        return filtered
+    return rows
 
 
 def save_rows(rows: List[Dict[str, object]], path: str) -> None:

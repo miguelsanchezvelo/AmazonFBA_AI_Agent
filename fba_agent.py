@@ -154,19 +154,13 @@ def request_missing_keys(serp: str | None, keepa: str | None, openai: str | None
 
 
 def check_email_connection() -> bool:
-    """Return ``True`` if email credentials are present and IMAP login succeeds."""
+    """Return ``True`` if email credentials are present."""
 
+    if os.getenv("DISABLE_EMAIL", "").lower() in {"1", "true", "yes"}:
+        return False
     email_addr = os.getenv("EMAIL_ADDRESS")
     password = os.getenv("EMAIL_PASSWORD")
-    if not email_addr or not password:
-        return False
-    try:
-        imap = imaplib.IMAP4_SSL("imap.gmail.com")
-        imap.login(email_addr, password)
-        imap.logout()
-    except Exception:
-        return False
-    return True
+    return bool(email_addr and password)
 
 
 def print_service_status(services: Dict[str, bool]) -> None:
@@ -344,7 +338,9 @@ def main() -> None:
     negotiation_exists = os.path.exists("negotiation_agent.py")
     email_ok = check_email_connection()
     if not email_ok:
-        print(f"{Fore.YELLOW}! Email credentials missing or connection failed{Style.RESET_ALL}")
+        print(
+            f"{Fore.YELLOW}! Email modules disabled. Set EMAIL_ADDRESS and EMAIL_PASSWORD in .env to enable{Style.RESET_ALL}"
+        )
     print_service_status(services)
     ensure_mock_data(services)
 
