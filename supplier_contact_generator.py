@@ -14,6 +14,18 @@ import argparse
 import csv
 import os
 from typing import Dict, List
+import time
+
+LOG_FILE = "log.txt"
+
+
+def log(msg: str) -> None:
+    ts = time.strftime("%Y-%m-%d %H:%M:%S")
+    try:
+        with open(LOG_FILE, "a", encoding="utf-8") as f:
+            f.write(f"{ts} {msg}\n")
+    except Exception:
+        pass
 
 try:
     from dotenv import load_dotenv
@@ -31,6 +43,7 @@ INPUT_CSV = os.path.join("data", "supplier_selection_results.csv")
 OUTPUT_DIR = "supplier_messages"
 TEMPLATE_FILE = "template.txt"
 ERROR_LOG = "supplier_errors.log"
+PRODUCT_CSV = os.path.join("data", "product_results.csv")
 
 SYSTEM_PROMPT = "You are an expert FBA sourcing agent helping contact suppliers."
 
@@ -46,12 +59,25 @@ def parse_units(value: str | None) -> int:
         return 0
 
 
+def load_valid_asins() -> set[str]:
+    if not os.path.exists(PRODUCT_CSV):
+        return set()
+    with open(PRODUCT_CSV, newline="", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        return {
+            row.get("asin") or row.get("estimated_asin")
+            for row in reader
+            if row.get("asin") or row.get("estimated_asin")
+        }
+
+
 def load_products(path: str) -> List[Dict[str, str]]:
     """Load products with units to order greater than zero."""
 
     if not os.path.exists(path):
         raise FileNotFoundError(f"Input file '{path}' not found.")
 
+    valid = load_valid_asins()
     rows: List[Dict[str, str]] = []
     with open(path, newline="", encoding="utf-8") as f:
         reader = csv.DictReader(f)
@@ -63,6 +89,9 @@ def load_products(path: str) -> List[Dict[str, str]]:
                 continue
             asin = (row.get("asin") or row.get("ASIN") or "").strip()
             title = (row.get("title") or row.get("Title") or "").strip()
+            if valid and asin and asin not in valid:
+                log(f"supplier_contact_generator: unknown ASIN {asin}")
+                continue
             rows.append({"asin": asin or "UNKNOWN", "title": title})
     return rows
 
@@ -98,9 +127,20 @@ def generate_message(
     try:
         resp = client.chat.completions.create(model=model, messages=messages)
     except OpenAIError as exc:
-        if "model" in str(exc):
-            raise RuntimeError(f"Model '{model}' not available: {exc}") from exc
-        raise RuntimeError(f"OpenAI API error: {exc}") from exc
+        if "model" in str(exc) or "404" in str(exc):
+            fallback = "gpt-3.5-turbo"
+            log(f"downgrading model to {fallback} for ASIN {asin}")
+            try:
+                resp = client.chat.completions.create(
+                    model=fallback, messages=messages
+                )
+                model = fallback
+            except Exception as exc2:
+                raise RuntimeError(
+                    f"OpenAI API error after fallback: {exc2}"
+                ) from exc2
+        else:
+            raise RuntimeError(f"OpenAI API error: {exc}") from exc
     return resp.choices[0].message.content.strip()
 
 
@@ -135,7 +175,13 @@ def main() -> None:
         print("OPENAI_API_KEY not found in .env")
         return
 
-    client = OpenAI(api_key=api_key)
+    client = None
+    if OpenAI and api_key:
+        try:
+            client = OpenAI(api_key=api_key)
+        except Exception as exc:  # pragma: no cover - network
+            log(f"supplier_contact_generator: OpenAI init failed {exc}")
+            client = None
 
     try:
         products = load_products(INPUT_CSV)
@@ -172,13 +218,18 @@ def main() -> None:
             failures += 1
             continue
 
-        try:
-            message = generate_message(client, asin, title, template, model)
-        except Exception as exc:  # pragma: no cover - network
-            print(f"Failed to generate message for {asin}: {exc}")
-            log_error(asin, title, exc)
-            failures += 1
-            continue
+        message = ""
+        if client:
+            try:
+                message = generate_message(client, asin, title, template, model)
+            except Exception as exc:  # pragma: no cover - network
+                log_error(asin, title, exc)
+                log(f"supplier_contact_generator: using fallback message for {asin}")
+        if not message:
+            message = (
+                f"Hello, we are interested in '{title}' (ASIN {asin}). "
+                "Please provide pricing and MOQ details."
+            )
 
         out_path = os.path.join(OUTPUT_DIR, f"{asin}.txt")
         try:

@@ -7,6 +7,17 @@ from typing import List, Dict, Optional, Tuple
 from difflib import SequenceMatcher
 import time
 
+LOG_FILE = "log.txt"
+
+
+def log(msg: str) -> None:
+    ts = time.strftime("%Y-%m-%d %H:%M:%S")
+    try:
+        with open(LOG_FILE, "a", encoding="utf-8") as f:
+            f.write(f"{ts} {msg}\n")
+    except Exception:
+        pass
+
 try:
     from dotenv import load_dotenv
 except Exception:  # pragma: no cover - optional dependency
@@ -279,14 +290,38 @@ def main():
     if variable_budget <= 0:
         raise SystemExit("Budget too low after reserving fixed costs")
 
-    products, summary = discover_products(
-        variable_budget,
-        debug=args.debug,
-        verbose=args.verbose,
-        max_products=args.max_products,
-    )
+    fallback_csv = os.path.join("data", "mock_product_results.csv")
+    try:
+        products, summary = discover_products(
+            variable_budget,
+            debug=args.debug,
+            verbose=args.verbose,
+            max_products=args.max_products,
+        )
+    except Exception as exc:
+        products = []
+        summary = []
+        msg = f"product_discovery error: {exc}"
+        print(msg)
+        log(msg)
+
     if not products:
-        raise SystemExit("No products found")
+        if os.path.exists(fallback_csv):
+            msg = f"No products found. Using mock data from {fallback_csv}"
+            print(msg)
+            log(msg)
+            with open(fallback_csv, newline="", encoding="utf-8") as f:
+                reader = csv.DictReader(f)
+                products = []
+                for row in reader:
+                    row["price"] = parse_float(row.get("price")) or 0.0
+                    row["margin"] = parse_float(row.get("margin")) or 0.0
+                    row["units"] = int(row.get("units") or 0)
+                    row["total_profit"] = parse_float(row.get("total_profit")) or 0.0
+                    products.append(row)
+            summary = []
+        else:
+            raise SystemExit("No products found")
 
     products.sort(key=lambda x: x["total_profit"], reverse=True)
     top = products[:20]

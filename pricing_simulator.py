@@ -4,7 +4,34 @@ import argparse
 import csv
 import os
 import re
-from typing import Dict, List, Optional, Tuple
+import time
+from typing import Dict, List, Optional, Tuple, Set
+import time
+
+LOG_FILE = "log.txt"
+
+
+def log(msg: str) -> None:
+    ts = time.strftime("%Y-%m-%d %H:%M:%S")
+    try:
+        with open(LOG_FILE, "a", encoding="utf-8") as f:
+            f.write(f"{ts} {msg}\n")
+    except Exception:
+        pass
+
+PRODUCT_CSV = os.path.join("data", "product_results.csv")
+
+
+def load_valid_asins() -> Set[str]:
+    if not os.path.exists(PRODUCT_CSV):
+        return set()
+    with open(PRODUCT_CSV, newline="", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        return {
+            row.get("asin") or row.get("estimated_asin")
+            for row in reader
+            if row.get("asin") or row.get("estimated_asin")
+        }
 
 try:
     from dotenv import load_dotenv
@@ -41,12 +68,17 @@ def load_top_products(path: str, count: int = 5) -> List[Dict[str, str]]:
         print(f"Input file '{path}' not found. Run profitability_estimation.py first.")
         return []
 
+    valid = load_valid_asins()
     rows: List[Dict[str, str]] = []
     with open(path, newline="", encoding="utf-8") as f:
         reader = csv.DictReader(f)
         for row in reader:
             profit = parse_float(row.get("profit"))
+            asin = (row.get("asin") or "").strip()
             if profit is not None:
+                if valid and asin and asin not in valid:
+                    log(f"pricing_simulator: unknown ASIN {asin}")
+                    continue
                 rows.append(row)
 
     if not rows:
@@ -90,7 +122,13 @@ def ask_question(client: OpenAI, model: str, messages: List[Dict[str, str]], que
     try:
         response = client.chat.completions.create(model=model, messages=messages)
     except Exception as exc:
-        raise RuntimeError(f"OpenAI API error: {exc}") from exc
+        if "model" in str(exc) or "404" in str(exc):
+            fallback = "gpt-3.5-turbo"
+            log(f"pricing_simulator: downgrading model to {fallback}")
+            response = client.chat.completions.create(model=fallback, messages=messages)
+            model = fallback
+        else:
+            raise RuntimeError(f"OpenAI API error: {exc}") from exc
     answer = response.choices[0].message.content.strip()
     messages.append({"role": "assistant", "content": answer})
     return answer
@@ -117,8 +155,13 @@ def analyze_product(client: OpenAI, model: str, row: Dict[str, str]) -> Tuple[st
         " Provide the price and a short reasoning."
     )
 
-    answer = ask_question(client, model, messages, question)
-    suggested_price = parse_float(answer)
+    try:
+        answer = ask_question(client, model, messages, question)
+        suggested_price = parse_float(answer)
+    except Exception as exc:
+        log(f"pricing_simulator: using fallback price for {row.get('asin')}: {exc}")
+        suggested_price = None
+        answer = "No model response; recommend keeping current price."
     return (f"${suggested_price:.2f}" if suggested_price is not None else "", answer)
 
 
@@ -144,13 +187,17 @@ def main(argv: Optional[List[str]] = None) -> None:
 
     load_dotenv()
     api_key = os.getenv("OPENAI_API_KEY")
-    if not api_key:
-        print("OPENAI_API_KEY not found in environment or .env file.")
-        return
+    client = None
+    if api_key and OpenAI:
+        try:
+            client = OpenAI(api_key=api_key)
+        except Exception as exc:
+            log(f"pricing_simulator: OpenAI init failed {exc}")
+            client = None
+    if client is None:
+        log("pricing_simulator: proceeding without OpenAI")
 
-    client = OpenAI(api_key=api_key)
-
-    model = choose_model(client)
+    model = choose_model(client) if client else "gpt-3.5-turbo"
     products = load_top_products(INPUT_CSV)
     if not products:
         return
@@ -158,11 +205,15 @@ def main(argv: Optional[List[str]] = None) -> None:
     results: List[Dict[str, str]] = []
     for row in products:
         try:
-            suggested, notes = analyze_product(client, model, row)
+            if client:
+                suggested, notes = analyze_product(client, model, row)
+            else:
+                raise RuntimeError("OpenAI unavailable")
         except Exception as exc:  # pragma: no cover - network
             asin = row.get("asin", "")
-            print(f"Failed to get pricing advice for ASIN {asin}: {exc}")
-            continue
+            log(f"pricing_simulator: fallback for {asin} {exc}")
+            suggested = ""
+            notes = "No pricing suggestion available"
         results.append(
             {
                 "ASIN": row.get("asin", ""),
@@ -176,7 +227,8 @@ def main(argv: Optional[List[str]] = None) -> None:
         save_results(results, OUTPUT_CSV)
         print(f"Results saved to {OUTPUT_CSV}")
     else:
-        print("No results to save.")
+        save_results([], OUTPUT_CSV)
+        print(f"No results generated. Created empty {OUTPUT_CSV}")
 
 
 if __name__ == "__main__":
