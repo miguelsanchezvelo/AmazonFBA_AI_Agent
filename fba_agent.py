@@ -59,6 +59,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--resume", action="store_true", help="resume from last completed step")
     parser.add_argument("--from-step", help="start from given step")
     parser.add_argument("--reuse", action="store_true", help="reuse existing results when possible")
+    parser.add_argument(
+        "--auto-fix",
+        action="store_true",
+        help="automatically fix scripts failing validation",
+    )
     return parser.parse_args()
 
 
@@ -252,34 +257,138 @@ def ask_reuse(step: str, paths: List[str], *, auto: bool = False, force: bool = 
     return False
 
 
-def run_validation() -> None:
-    """Execute ``validate_all.py`` if available."""
+def run_validation(auto_fix: bool = False) -> bool:
+    """Execute ``validate_all.py`` and optionally auto-fix failing scripts."""
 
     if not os.path.exists("validate_all.py"):
         print("Validation script not found. Skipping validation step.")
         log("RESULT validation skipped missing")
-        return
+        return True
 
     print("\n=== Validation Report ===")
     log("START validation")
-    try:
-        proc = subprocess.Popen(
+
+    def _run() -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
             [sys.executable, "validate_all.py"],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
+            capture_output=True,
             text=True,
         )
+
+    try:
+        res = _run()
     except Exception as exc:  # pragma: no cover - execution failure
         print(f"Failed to run validation script: {exc}")
         log(f"RESULT validation failed launch {exc}")
-        return
+        return False
 
-    assert proc.stdout is not None
-    for line in proc.stdout:
-        print(line, end="")
-    proc.wait()
-    status = "completed" if proc.returncode == 0 else f"failed {proc.returncode}"
+    print(res.stdout)
+    output = res.stdout.splitlines()
+
+    def parse_errors(lines: List[str]) -> Dict[str, str]:
+        errs: Dict[str, str] = {}
+        for ln in lines:
+            if "❌" in ln or "Error" in ln:
+                parts = ln.split(":", 1)
+                if parts:
+                    name = parts[0].strip().split()[-1]
+                    path = name if os.path.exists(name) else None
+                    if path:
+                        msg = parts[1].strip() if len(parts) > 1 else ln
+                        errs[path] = msg
+        return errs
+
+    errors = parse_errors(output)
+    status = "completed" if res.returncode == 0 and not errors else f"failed {res.returncode}"
     log(f"RESULT validation {status}")
+
+    if not errors or not auto_fix:
+        return not errors
+
+    def fix_script(path: str, message: str) -> bool:
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                script = f.read()
+        except Exception as exc:  # pragma: no cover - file read error
+            print(f"Failed to read {path}: {exc}")
+            return False
+
+        load_dotenv()
+        api_key = os.getenv("OPENAI_API_KEY")
+        if not api_key:
+            print("OPENAI_API_KEY not found. Cannot auto-fix.")
+            return False
+
+        try:
+            from openai import OpenAI  # type: ignore
+        except Exception as exc:  # pragma: no cover - optional dependency
+            print(f"OpenAI library not available: {exc}")
+            return False
+
+        client = OpenAI(api_key=api_key)
+        prompt = (
+            "This Python script failed validation. Fix it so it passes test_all.py.\n"
+            f"Error: {message}\nScript:\n```python\n{script}\n```"
+        )
+        try:
+            resp = client.chat.completions.create(
+                model=OPENAI_MODEL,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0,
+            )
+            text = resp.choices[0].message.content.strip()
+        except Exception as exc:
+            print(f"OpenAI request failed for {path}: {exc}")
+            try:
+                alt = (
+                    "Rewrite this script to resolve the error:\n"
+                    f"Error: {message}\n```python\n{script}\n```"
+                )
+                resp = client.chat.completions.create(
+                    model=OPENAI_MODEL,
+                    messages=[{"role": "user", "content": alt}],
+                    temperature=0,
+                )
+                text = resp.choices[0].message.content.strip()
+            except Exception as exc2:
+                print(f"Second attempt failed for {path}: {exc2}")
+                return False
+
+        import re
+
+        match = re.search(r"```(?:python)?\n(.*?)```", text, re.DOTALL)
+        new_code = match.group(1).strip() if match else text
+
+        try:
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(new_code + "\n")
+            print(f"Auto-fixed {path}")
+            return True
+        except Exception as exc:
+            print(f"Failed to write {path}: {exc}")
+            return False
+
+    # attempt fixes
+    for pth, msg in errors.items():
+        if not fix_script(pth, msg):
+            print(f"Could not auto-fix {pth}.")
+            return False
+        try:
+            res = _run()
+        except Exception as exc:
+            print(f"Failed to re-run validation: {exc}")
+            return False
+        print(res.stdout)
+        output = res.stdout.splitlines()
+        errors = parse_errors(output)
+        if not errors:
+            log("RESULT validation auto-fixed")
+            return True
+
+    if errors:
+        print("Validation failed after auto-fix attempts.")
+        return False
+    return True
 
 
 def load_last_statuses() -> Dict[str, str]:
@@ -479,7 +588,7 @@ def main() -> None:
     if suggestions:
         print("\nSubscriptions that would improve results: " + ", ".join(suggestions))
 
-    run_validation()
+    run_validation(auto_fix=args.auto_fix)
 
     log("RUN END")
 
