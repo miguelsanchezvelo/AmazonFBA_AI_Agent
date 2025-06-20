@@ -47,6 +47,7 @@ OUTPUTS: Dict[str, str] = {
     "inventory_management": os.path.join(DATA_DIR, "inventory_management_results.csv"),
     "negotiation_agent": os.path.join("logs", "email_negotiation_log.txt"),
     "email_manager": "email_logs",
+    "order_placement_agent": os.path.join("logs", "order_confirmation_log.txt"),
 }
 
 
@@ -338,6 +339,13 @@ def main() -> None:
             [OUTPUTS["email_manager"]],
             email_ok,
         ),
+        (
+            "order_placement_agent",
+            ["order_placement_agent.py"],
+            None,
+            [OUTPUTS["order_placement_agent"]],
+            True,
+        ),
     ]
 
     step_names = [s[0] for s in steps]
@@ -376,6 +384,15 @@ def main() -> None:
             log(f"RESULT {name} skipped 0s missing_input")
             statuses[name] = "skipped"
             continue
+        if name == "order_placement_agent":
+            msgs_dir = OUTPUTS["supplier_contact_generator"]
+            if not os.path.exists(OUTPUTS["supplier_selection"]) or not os.path.isdir(msgs_dir) or not os.listdir(msgs_dir):
+                print(
+                    f"{Fore.YELLOW}! {name} skipped due to missing supplier selection results or messages{Style.RESET_ALL}"
+                )
+                log(f"RESULT {name} skipped 0s missing_input")
+                statuses[name] = "skipped"
+                continue
         if ask_reuse(name, paths, auto=args.auto, force=args.reuse or statuses.get(name) == "reused"):
             statuses[name] = "reused"
             generated.extend(p for p in paths if os.path.exists(p))

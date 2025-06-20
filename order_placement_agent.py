@@ -15,6 +15,11 @@ from importlib.util import find_spec
 from typing import Dict, List, Tuple
 import argparse
 
+try:
+    from dotenv import load_dotenv
+except Exception:  # pragma: no cover - optional dependency
+    load_dotenv = lambda: None  # type: ignore
+
 REQUIRED_PACKAGES = {
     "yagmail": "yagmail",
     "dotenv": "python-dotenv",
@@ -64,6 +69,7 @@ MESSAGES_DIR = "supplier_messages"
 LOG_CSV = os.path.join("data", "order_placement_log.csv")
 TMP_DIR = os.path.join("data", "edited_messages")
 CONFIG_JSON = "config.json"
+CONFIRM_LOG = os.path.join("logs", "order_confirmation_log.txt")
 
 
 # ---------------------------------------------------------------------------
@@ -111,8 +117,6 @@ def extract_email(text: str) -> str | None:
 
 
 def load_credentials() -> Tuple[str | None, str | None, str, int]:
-    from dotenv import load_dotenv
-
     load_dotenv()
     config: Dict[str, str] = {}
     if os.path.exists(CONFIG_JSON):
@@ -366,6 +370,9 @@ def main(argv: List[str] | None = None) -> None:
         smtp_server=args.smtp_server,
         smtp_port=args.smtp_port,
     )
+    os.makedirs(os.path.dirname(CONFIRM_LOG), exist_ok=True)
+    with open(CONFIRM_LOG, "a", encoding="utf-8") as f:
+        f.write(f"run_completed {datetime.utcnow().isoformat()}\n")
 
 
 if __name__ == "__main__":
