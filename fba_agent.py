@@ -38,6 +38,7 @@ OPENAI_MODEL = "gpt-4"
 OUTPUTS: Dict[str, str] = {
     "product_discovery": os.path.join(DATA_DIR, "product_results.csv"),
     "market_analysis": os.path.join(DATA_DIR, "market_analysis_results.csv"),
+    "review_analysis": os.path.join(DATA_DIR, "review_analysis_results.csv"),
     "profitability_estimation": os.path.join(DATA_DIR, "profitability_estimation_results.csv"),
     "demand_forecast": os.path.join(DATA_DIR, "demand_forecast_results.csv"),
     "supplier_selection": os.path.join(DATA_DIR, "supplier_selection_results.csv"),
@@ -310,6 +311,13 @@ def main() -> None:
             [OUTPUTS["market_analysis"]],
             services["SerpAPI"] or services["Keepa"],
         ),
+        (
+            "review_analysis",
+            ["review_analysis.py", "--csv", OUTPUTS["market_analysis"]],
+            None,
+            [OUTPUTS["review_analysis"]],
+            True,
+        ),
         ("profitability_estimation", ["profitability_estimation.py"], None, [OUTPUTS["profitability_estimation"]], True),
         ("demand_forecast", ["demand_forecast.py"], None, [OUTPUTS["demand_forecast"]], True),
         ("supplier_selection", ["supplier_selection.py"], f"{budget}\n", [OUTPUTS["supplier_selection"]], True),
@@ -359,6 +367,13 @@ def main() -> None:
         if not condition:
             print(f"{Fore.YELLOW}! {name} skipped due to missing services{Style.RESET_ALL}")
             log(f"RESULT {name} skipped 0s service")
+            statuses[name] = "skipped"
+            continue
+        if name == "review_analysis" and not os.path.exists(OUTPUTS["market_analysis"]):
+            print(
+                f"{Fore.YELLOW}! {name} skipped because market_analysis results are missing{Style.RESET_ALL}"
+            )
+            log(f"RESULT {name} skipped 0s missing_input")
             statuses[name] = "skipped"
             continue
         if ask_reuse(name, paths, auto=args.auto, force=args.reuse or statuses.get(name) == "reused"):
