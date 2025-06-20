@@ -1,8 +1,30 @@
 import os
+import sys
+import subprocess
 import logging
 from typing import List, Dict, Optional, Tuple
 
-import pandas as pd
+try:
+    import pandas as pd
+except Exception:  # pragma: no cover - pandas missing
+    subprocess.run([sys.executable, "-m", "pip", "install", "pandas"], check=False)
+    try:  # pragma: no cover - installation may fail
+        import pandas as pd  # type: ignore
+    except Exception as exc:  # pragma: no cover - still missing
+        print("Failed to import pandas:", exc, file=sys.stderr)
+        sys.exit(1)
+
+try:
+    from colorama import Fore, Style, init as colorama_init
+    colorama_init()
+    USE_COLOR = True
+except Exception:  # pragma: no cover - colorama missing
+    class _Dummy:
+        RESET_ALL = ""
+        RED = GREEN = YELLOW = ""
+
+    Fore = Style = _Dummy()  # type: ignore
+    USE_COLOR = False
 
 DATA_DIR = "data"
 
@@ -220,47 +242,74 @@ def validate_file(fname: str) -> Tuple[Optional[pd.DataFrame], Result]:
 def cross_check(data: Dict[str, pd.DataFrame]) -> List[Result]:
     results: List[Result] = []
     prod = data.get("product_results.csv")
-    market = data.get("market_analysis_results.csv")
-    profit = data.get("profitability_estimation_results.csv")
-    demand = data.get("demand_forecast_results.csv")
+    if prod is None:
+        return results
+
+    prod_asins = set(prod["asin"].dropna()) | set(prod["estimated_asin"].dropna())
+
+    mapping = {
+        "market_analysis_results.csv": ("asin", "market"),
+        "profitability_estimation_results.csv": ("asin", "profitability"),
+        "demand_forecast_results.csv": ("asin", "demand"),
+        "supplier_selection_results.csv": ("asin", "supplier"),
+        "pricing_suggestions.csv": ("ASIN", "pricing"),
+        "inventory_management_results.csv": ("asin", "inventory"),
+    }
+
+    for fname, (col, label) in mapping.items():
+        df = data.get(fname)
+        if df is None:
+            continue
+        other_asins = set(df[col].dropna())
+        missing = other_asins - prod_asins
+        if missing:
+            results.append(Result(f"{label} -> product", "Error", "ASIN missing from product_results"))
+
     supplier = data.get("supplier_selection_results.csv")
     pricing = data.get("pricing_suggestions.csv")
-    inventory = data.get("inventory_management_results.csv")
-
-    if prod is not None and market is not None:
-        prod_asins = set(prod["asin"].dropna()) | set(prod["estimated_asin"].dropna())
-        market_asins = set(market["asin"].dropna())
-        if not prod_asins & market_asins:
-            results.append(Result("product -> market", "Error", "No ASIN overlap"))
-    if market is not None and profit is not None:
-        if not set(market["asin"].dropna()) & set(profit["asin"].dropna()):
-            results.append(Result("market -> profitability", "Error", "No ASIN overlap"))
-    if market is not None and demand is not None:
-        if not set(market["asin"].dropna()) & set(demand["asin"].dropna()):
-            results.append(Result("market -> demand", "Error", "No ASIN overlap"))
-    if profit is not None and demand is not None and supplier is not None:
-        combined = set(profit["asin"].dropna()) & set(demand["asin"].dropna())
-        if not combined:
-            results.append(Result("profit/demand -> supplier", "Error", "No ASIN overlap"))
-        else:
-            if not combined & set(supplier["asin"].dropna()):
-                results.append(Result("profit/demand -> supplier", "Error", "Supplier ASIN mismatch"))
     if supplier is not None and pricing is not None:
-        if not set(supplier["asin"].dropna()) & set(pricing["ASIN"].dropna()):
-            results.append(Result("supplier -> pricing", "Error", "No ASIN overlap"))
-    if supplier is not None and inventory is not None:
-        if not set(supplier["asin"].dropna()) & set(inventory["asin"].dropna()):
-            results.append(Result("supplier -> inventory", "Error", "No ASIN overlap"))
+        sup_asins = set(supplier["asin"].dropna())
+        price_asins = set(pricing["ASIN"].dropna())
+        if sup_asins != price_asins:
+            results.append(Result("supplier vs pricing", "Warning", "ASIN mismatch"))
+
+    demand = data.get("demand_forecast_results.csv")
+    profit = data.get("profitability_estimation_results.csv")
+    inventory = data.get("inventory_management_results.csv")
+    if demand is not None and profit is not None and inventory is not None:
+        d_asins = set(demand["asin"].dropna())
+        p_asins = set(profit["asin"].dropna())
+        i_asins = set(inventory["asin"].dropna())
+        common = d_asins & p_asins & i_asins
+        if not common:
+            results.append(Result("demand/profitability/inventory", "Error", "No common ASINs"))
+        else:
+            for name, s in [("demand", d_asins), ("profitability", p_asins), ("inventory", i_asins)]:
+                if s != common:
+                    results.append(Result(f"{name} set", "Warning", "ASIN set differs"))
+
     return results
 
 
 def print_summary(results: List[Result]) -> None:
-    header = f"{'Module':35} {'Status':>8}  Message"
+    header = f"{'File':35} {'Status':>8}  Notes"
     print(header)
     print("-" * len(header))
+
+    def fmt(status: str) -> str:
+        if not USE_COLOR:
+            return status
+        color = {
+            "OK": Fore.GREEN,
+            "Warning": Fore.YELLOW,
+            "Error": Fore.RED,
+        }.get(status, "")
+        return f"{color}{status}{Style.RESET_ALL}"
+
     for r in results:
         msg = r.message if r.message else "-"
-        print(f"{r.module:35} {r.status:>8}  {msg}")
+        status = fmt(r.status)
+        print(f"{r.module:35} {status:>8}  {msg}")
 
 
 def main() -> None:
