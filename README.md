@@ -139,3 +139,44 @@ git push origin your-feature-branch
 - Avoid resolving conflicts in non-code editors like Notepad.
 
 ---
+
+## ✅ Auto-Fix & Git Auto-Commit
+
+The `fba_agent.py` script now includes an optional mechanism to validate, fix, and auto-commit changes to the repository using Git.
+
+### How It Works
+
+1. **Validation Step**:
+   - Runs `validate_all.py` to check if all scripts work correctly (compilation, imports, CLI help, etc.).
+
+2. **Auto-Fix Step**:
+   - If validation fails and `--auto-fix` is used, `fba_agent.py` triggers Codex to automatically fix the broken modules.
+
+3. **Git Auto-Commit**:
+   - After the fix, the agent:
+     - Detects the current Git branch.
+     - Adds all changes: `git add .`
+     - Commits them: `git commit -m "fix: auto-corrected validation errors"`
+     - Pushes to the same branch: `git push origin [branch]`
+
+4. **Logs**:
+   - All actions (fixes, validation, git output) are recorded in `log.txt`.
+
+### Requirements
+
+- Local Git installation (`git` must be in your system PATH).
+- Authenticated access to your GitHub repository (via HTTPS token or SSH).
+- Internet connection to access Codex/OpenAI API.
+
+### Example
+
+```bash
+python fba_agent.py --auto --auto-fix
+```
+
+This command runs the pipeline without user prompts, fixes any broken code, and commits the results automatically if needed.
+
+### Notes
+
+- If Git is not configured or an error occurs, a warning will be shown but the process continues.
+- You are encouraged to review changes using GitHub or `git diff` before deploying to production.
