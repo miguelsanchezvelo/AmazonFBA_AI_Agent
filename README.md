@@ -78,3 +78,64 @@ Run it manually with:
 ```bash
 python email_manager.py
 ```
+---
+
+## 🛠️ How to resolve Git conflicts
+
+When working on different branches, you might encounter conflicts when merging. Here’s a simple guide to resolve them safely:
+
+### ✅ Steps
+
+1. Make sure you have the latest version of the main branch:
+
+```bash
+git checkout main
+git pull origin main
+```
+
+2. Switch to your working branch:
+
+```bash
+git checkout your-feature-branch
+```
+
+3. Merge the latest changes from main into your branch:
+
+```bash
+git merge main
+```
+
+> ⚠️ If conflicts appear, Git will mark them in your files.
+
+4. Open the files with conflict. You’ll see markers like:
+
+```text
+<<<<<<< HEAD
+Your changes
+=======
+Incoming changes from main
+>>>>>>> main
+```
+
+Edit and decide which version to keep (or combine both), then save.
+
+5. After resolving, stage the file:
+
+```bash
+git add file_with_conflict.py
+git commit -m "Resolve merge conflict with main"
+```
+
+6. Push your branch:
+
+```bash
+git push origin your-feature-branch
+```
+
+### 💡 Tips
+
+- Use an editor like VS Code to resolve conflicts visually.
+- Run `git status` to check progress and remaining conflicts.
+- Avoid resolving conflicts in non-code editors like Notepad.
+
+---
