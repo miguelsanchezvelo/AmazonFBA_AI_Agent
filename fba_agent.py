@@ -252,6 +252,36 @@ def ask_reuse(step: str, paths: List[str], *, auto: bool = False, force: bool = 
     return False
 
 
+def run_validation() -> None:
+    """Execute ``validate_all.py`` if available."""
+
+    if not os.path.exists("validate_all.py"):
+        print("Validation script not found. Skipping validation step.")
+        log("RESULT validation skipped missing")
+        return
+
+    print("\n=== Validation Report ===")
+    log("START validation")
+    try:
+        proc = subprocess.Popen(
+            [sys.executable, "validate_all.py"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+        )
+    except Exception as exc:  # pragma: no cover - execution failure
+        print(f"Failed to run validation script: {exc}")
+        log(f"RESULT validation failed launch {exc}")
+        return
+
+    assert proc.stdout is not None
+    for line in proc.stdout:
+        print(line, end="")
+    proc.wait()
+    status = "completed" if proc.returncode == 0 else f"failed {proc.returncode}"
+    log(f"RESULT validation {status}")
+
+
 def load_last_statuses() -> Dict[str, str]:
     """Return step statuses from the last run recorded in ``log.txt``."""
 
@@ -448,6 +478,8 @@ def main() -> None:
 
     if suggestions:
         print("\nSubscriptions that would improve results: " + ", ".join(suggestions))
+
+    run_validation()
 
     log("RUN END")
 
