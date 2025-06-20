@@ -59,6 +59,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--resume", action="store_true", help="resume from last completed step")
     parser.add_argument("--from-step", help="start from given step")
     parser.add_argument("--reuse", action="store_true", help="reuse existing results when possible")
+    parser.add_argument(
+        "--auto-fix",
+        action="store_true",
+        help="automatically fix validation errors and commit the changes",
+    )
     return parser.parse_args()
 
 
@@ -252,19 +257,37 @@ def ask_reuse(step: str, paths: List[str], *, auto: bool = False, force: bool = 
     return False
 
 
-def run_validation() -> None:
-    """Execute ``validate_all.py`` if available."""
+def _git_status() -> str:
+    """Return ``git status --porcelain`` output or empty string on failure."""
 
+    try:
+        res = subprocess.run(
+            ["git", "status", "--porcelain"], capture_output=True, text=True
+        )
+        if res.returncode == 0:
+            return res.stdout.strip()
+    except Exception:
+        pass
+    return ""
+
+
+def run_validation(auto_fix: bool = False) -> bool:
+    """Execute ``validate_all.py`` if available.
+
+    Returns ``True`` if files were modified when ``auto_fix`` is ``True``.
+    """
     if not os.path.exists("validate_all.py"):
         print("Validation script not found. Skipping validation step.")
         log("RESULT validation skipped missing")
-        return
+        return False
 
     print("\n=== Validation Report ===")
     log("START validation")
+    before = _git_status() if auto_fix else ""
     try:
+        cmd = [sys.executable, "validate_all.py"] + (["--auto-fix"] if auto_fix else [])
         proc = subprocess.Popen(
-            [sys.executable, "validate_all.py"],
+            cmd,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
@@ -272,7 +295,7 @@ def run_validation() -> None:
     except Exception as exc:  # pragma: no cover - execution failure
         print(f"Failed to run validation script: {exc}")
         log(f"RESULT validation failed launch {exc}")
-        return
+        return False
 
     assert proc.stdout is not None
     for line in proc.stdout:
@@ -280,6 +303,8 @@ def run_validation() -> None:
     proc.wait()
     status = "completed" if proc.returncode == 0 else f"failed {proc.returncode}"
     log(f"RESULT validation {status}")
+    after = _git_status() if auto_fix else before
+    return auto_fix and (before != after)
 
 
 def load_last_statuses() -> Dict[str, str]:
@@ -479,7 +504,43 @@ def main() -> None:
     if suggestions:
         print("\nSubscriptions that would improve results: " + ", ".join(suggestions))
 
-    run_validation()
+    modified = run_validation(auto_fix=args.auto_fix)
+
+    if args.auto_fix and modified:
+        try:
+            branch = (
+                subprocess.check_output(
+                    ["git", "rev-parse", "--abbrev-ref", "HEAD"], text=True
+                )
+                .strip()
+            )
+            log(f"GIT branch {branch}")
+        except Exception as exc:  # pragma: no cover - git missing
+            print(f"Warning: git not available ({exc})")
+            log(f"GIT branch detection failed: {exc}")
+        else:
+            cmds = [
+                ["git", "add", "."],
+                ["git", "commit", "-m", "fix: auto-corrected validation errors"],
+                ["git", "push", "origin", branch],
+            ]
+            for cmd in cmds:
+                try:
+                    res = subprocess.run(cmd, capture_output=True, text=True)
+                    log(f"GIT {' '.join(cmd)} -> {res.returncode}")
+                    if res.stdout:
+                        log(res.stdout.strip())
+                    if res.stderr:
+                        log(res.stderr.strip())
+                    if res.returncode != 0:
+                        print(
+                            f"Warning: {' '.join(cmd)} failed ({res.stderr.strip()})"
+                        )
+                        break
+                except Exception as exc:  # pragma: no cover - git failure
+                    print(f"Warning: {' '.join(cmd)} failed ({exc})")
+                    log(f"GIT {' '.join(cmd)} failed: {exc}")
+                    break
 
     log("RUN END")
 
