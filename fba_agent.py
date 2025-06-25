@@ -78,6 +78,11 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="automatically fix validation errors and commit the changes",
     )
+    parser.add_argument(
+        "--reset",
+        action="store_true",
+        help="clear previous outputs and logs before running",
+    )
     return parser.parse_args()
 
 
@@ -356,6 +361,12 @@ def load_last_statuses() -> Dict[str, str]:
 def main() -> None:
     colorama_init()
     args = parse_args()
+    if args.reset:
+        try:
+            import reset_pipeline
+            reset_pipeline.reset()
+        except Exception as exc:  # pragma: no cover - reset failure
+            print(f"Reset failed: {exc}")
 
     log("RUN START")
     services, serp, keepa, openai_key, openai_model = detect_services()
