@@ -104,9 +104,12 @@ def load_market_data(path: str):
                 continue
             filtered.append(r)
         if unknown:
+            print(
+                "Warning: ASINs not in product_results.csv: " + ", ".join(sorted(unknown))
+            )
             log(f"profitability_estimation: ASIN mismatch {','.join(sorted(unknown))}")
             if not filtered:
-                raise SystemExit("ASIN mismatch with product_results.csv")
+                return []
         return filtered
     return rows
 

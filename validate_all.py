@@ -111,15 +111,21 @@ class Result:
 
 def load_csv(path: str) -> Optional[pd.DataFrame]:
     if not os.path.exists(path):
-        logging.error("File not found: %s", path)
+        logging.error("Missing file: %s", path)
         return None
+    try:
+        if os.stat(path).st_size == 0:
+            logging.error("Empty file: %s", path)
+            return None
+    except Exception:
+        pass
     try:
         df = pd.read_csv(path)
     except Exception as exc:  # pragma: no cover - malformed CSV
         logging.error("Failed to read %s: %s", path, exc)
         return None
     if df.empty:
-        logging.error("File %s is empty", path)
+        logging.error("Empty file: %s", path)
         return None
     return df
 
@@ -226,9 +232,15 @@ VALIDATORS = {
 
 def validate_file(fname: str) -> Tuple[Optional[pd.DataFrame], Result]:
     path = os.path.join(DATA_DIR, fname)
+    if not os.path.exists(path):
+        load_csv(path)  # log
+        return None, Result(fname, "Missing", "file not found")
+    if os.stat(path).st_size == 0:
+        load_csv(path)  # log
+        return None, Result(fname, "Empty", "zero bytes")
     df = load_csv(path)
     if df is None:
-        return None, Result(fname, "Error", "Missing or empty file")
+        return None, Result(fname, "Error", "invalid or empty")
     ok_cols, missing = validate_columns(df, FILES[fname]["cols"])
     if not ok_cols:
         return df, Result(fname, "Error", f"Missing columns: {', '.join(missing)}")
@@ -263,7 +275,7 @@ def cross_check(data: Dict[str, pd.DataFrame]) -> List[Result]:
         other_asins = set(df[col].dropna())
         missing = other_asins - prod_asins
         if missing:
-            results.append(Result(f"{label} -> product", "Error", "ASIN missing from product_results"))
+            results.append(Result(f"{label} -> product", "ASIN mismatch", "ASIN missing from product_results"))
 
     supplier = data.get("supplier_selection_results.csv")
     pricing = data.get("pricing_suggestions.csv")
@@ -303,6 +315,9 @@ def print_summary(results: List[Result]) -> None:
             "OK": Fore.GREEN,
             "Warning": Fore.YELLOW,
             "Error": Fore.RED,
+            "Missing": Fore.RED,
+            "Empty": Fore.RED,
+            "ASIN mismatch": Fore.RED,
         }.get(status, "")
         return f"{color}{status}{Style.RESET_ALL}"
 

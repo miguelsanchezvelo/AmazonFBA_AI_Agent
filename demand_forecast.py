@@ -118,16 +118,19 @@ def process(rows: List[Dict[str, str]]) -> List[Dict[str, str]]:
             }
         )
     if unknown:
+        msg = f"ASINs not in product_results.csv: {', '.join(sorted(unknown))}"
+        print(f"Warning: {msg}. Consider rerunning product_discovery.py.")
         log(f"demand_forecast: ASIN mismatch {','.join(sorted(unknown))}")
         if not results:
-            raise SystemExit("ASIN mismatch with product_results.csv")
+            return []
     return results
 
 
 def save_results(rows: List[Dict[str, str]]):
     os.makedirs(os.path.dirname(OUTPUT_CSV), exist_ok=True)
     if not rows:
-        rows = [FALLBACK_ROW]
+        print("No valid ASINs to forecast. Skipping save.")
+        return
     with open(OUTPUT_CSV, "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(
             f,
@@ -193,6 +196,9 @@ def main(argv: Optional[List[str]] = None) -> None:
 
     rows = choose_input()
     results = process(rows)
+    if not results:
+        print("No valid demand data found. Exiting.")
+        return
     print_table(results)
     save_results(results)
     print(f"Results saved to {OUTPUT_CSV}")

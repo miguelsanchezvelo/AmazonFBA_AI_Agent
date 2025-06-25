@@ -178,9 +178,12 @@ def join_data(profit_rows: List[Dict[str, str]], demand_rows: List[Dict[str, str
             continue
         combined.append({**p, **d})
     if unknown:
+        print(
+            "Warning: ASINs not in product_results.csv: " + ", ".join(sorted(unknown))
+        )
         log(f"supplier_selection: ASIN mismatch {','.join(sorted(unknown))}")
         if not combined:
-            raise SystemExit("ASIN mismatch with product_results.csv")
+            return []
     return combined
 
 

@@ -187,9 +187,15 @@ def main(argv: Optional[List[str]] = None) -> None:
         default=OUTPUT_CSV,
         help="Where to save pricing suggestions",
     )
+    parser.add_argument(
+        "--auto",
+        action="store_true",
+        help="run in non-interactive mode with mock fallback",
+    )
     args = parser.parse_args(argv)
     INPUT_CSV = args.input
     OUTPUT_CSV = args.output
+    auto = args.auto
 
     load_dotenv()
     api_key = os.getenv("OPENAI_API_KEY")
@@ -206,15 +212,18 @@ def main(argv: Optional[List[str]] = None) -> None:
     model = choose_model(client) if client else "gpt-3.5-turbo"
     products = load_top_products(INPUT_CSV)
     if not products:
-        save_results([
-            {
-                "ASIN": "B0MOCK001",
-                "Title": "Mock Product",
-                "Suggested Price": "$19.99",
-                "Notes": "Fallback pricing data",
-            }
-        ], OUTPUT_CSV)
-        print(f"No input products. Created mock {OUTPUT_CSV}")
+        if auto:
+            save_results([
+                {
+                    "ASIN": "B0MOCK001",
+                    "Title": "Mock Product",
+                    "Suggested Price": "$19.99",
+                    "Notes": "Fallback pricing data",
+                }
+            ], OUTPUT_CSV)
+            print(f"No input products. Created mock {OUTPUT_CSV}")
+            return
+        print("No products available for pricing suggestions.")
         return
 
     results: List[Dict[str, str]] = []
@@ -239,14 +248,18 @@ def main(argv: Optional[List[str]] = None) -> None:
         )
 
     if not results:
-        results = [
-            {
-                "ASIN": "B0MOCK001",
-                "Title": "Mock Product",
-                "Suggested Price": "$19.99",
-                "Notes": "Fallback pricing data",
-            }
-        ]
+        if auto:
+            results = [
+                {
+                    "ASIN": "B0MOCK001",
+                    "Title": "Mock Product",
+                    "Suggested Price": "$19.99",
+                    "Notes": "Fallback pricing data",
+                }
+            ]
+        else:
+            print("No pricing suggestions generated.")
+            return
     save_results(results, OUTPUT_CSV)
     print(f"Results saved to {OUTPUT_CSV}")
 

@@ -3,8 +3,9 @@ import os
 import csv
 import re
 import argparse
+import time
 import json
-from typing import List, Dict, Optional, Tuple
+from typing import List, Dict, Optional, Tuple, Set
 
 try:
     import requests
@@ -23,6 +24,17 @@ except Exception:  # pragma: no cover - optional dependency
 
 load_dotenv()
 
+LOG_FILE = "log.txt"
+
+
+def log(msg: str) -> None:
+    ts = time.strftime("%Y-%m-%d %H:%M:%S")
+    try:
+        with open(LOG_FILE, "a", encoding="utf-8") as f:
+            f.write(f"{ts} {msg}\n")
+    except Exception:
+        pass
+
 CONFIG_PATH = "config.json"
 DATA_PATH = os.path.join("data", "market_analysis_results.csv")
 DISCOVERY_CSV = os.path.join("data", "product_results.csv")
@@ -30,6 +42,18 @@ MOCK_DATA_CSV = os.path.join("data", "mock_market_data.csv")
 
 SERPAPI_KEY: Optional[str] = None
 KEEPA_KEY: Optional[str] = None
+
+
+def load_valid_asins() -> Set[str]:
+    if not os.path.exists(DISCOVERY_CSV):
+        return set()
+    with open(DISCOVERY_CSV, newline="", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        return {
+            row.get("asin") or row.get("estimated_asin")
+            for row in reader
+            if row.get("asin") or row.get("estimated_asin")
+        }
 
 
 def load_keys(prompt: bool = False) -> Tuple[Optional[str], Optional[str]]:
@@ -441,6 +465,23 @@ def main():
         return
 
     products = analyze(asins, serp_available, keepa_available, not args.no_fallback)
+    valid = load_valid_asins()
+    if valid:
+        filtered = []
+        unknown: Set[str] = set()
+        for p in products:
+            asin = (p.get("asin") or "").strip()
+            if asin and asin not in valid:
+                unknown.add(asin)
+                continue
+            filtered.append(p)
+        if unknown:
+            print(
+                "Warning: ASINs not in product_results.csv: " + ", ".join(sorted(unknown))
+            )
+            log(f"market_analysis: ASIN mismatch {','.join(sorted(unknown))}")
+        products = filtered
+
     if not products:
         print("⚠️ No API keys found or no data collected. Entering mock data mode using 'data/mock_market_data.csv'")
         products = load_manual_csv(MOCK_DATA_CSV)
