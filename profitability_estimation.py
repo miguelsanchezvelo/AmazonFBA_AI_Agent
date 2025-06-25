@@ -96,12 +96,17 @@ def load_market_data(path: str):
     valid = load_valid_asins()
     if valid:
         filtered = []
+        unknown: Set[str] = set()
         for r in rows:
             asin = (r.get("asin") or "").strip()
             if asin and asin not in valid:
-                log(f"profitability_estimation: unknown ASIN {asin}")
+                unknown.add(asin)
                 continue
             filtered.append(r)
+        if unknown:
+            log(f"profitability_estimation: ASIN mismatch {','.join(sorted(unknown))}")
+            if not filtered:
+                raise SystemExit("ASIN mismatch with product_results.csv")
         return filtered
     return rows
 
