@@ -16,6 +16,8 @@ import time
 from typing import Dict, List, Optional, Set
 
 LOG_FILE = "log.txt"
+ASIN_LOG = os.path.join("logs", "asin_mismatch.log")
+UNPROFITABLE_LOG = os.path.join("logs", "unprofitable_products.log")
 
 
 def log(msg: str) -> None:
@@ -23,6 +25,33 @@ def log(msg: str) -> None:
     try:
         with open(LOG_FILE, "a", encoding="utf-8") as f:
             f.write(f"{ts} {msg}\n")
+    except Exception:
+        pass
+
+
+def log_asin_mismatch(module: str, asins: Set[str]) -> None:
+    if not asins:
+        return
+    os.makedirs(os.path.dirname(ASIN_LOG), exist_ok=True)
+    try:
+        with open(ASIN_LOG, "a", encoding="utf-8") as f:
+            f.write(
+                f"{time.strftime('%Y-%m-%d %H:%M:%S')} {module}: {','.join(sorted(asins))}\n"
+            )
+    except Exception:
+        pass
+
+
+def log_unprofitable(module: str, rows: List[dict]) -> None:
+    if not rows:
+        return
+    os.makedirs(os.path.dirname(UNPROFITABLE_LOG), exist_ok=True)
+    try:
+        with open(UNPROFITABLE_LOG, "a", encoding="utf-8") as f:
+            for r in rows:
+                asin = r.get("asin", "")
+                roi = r.get("roi", 0)
+                f.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')} {module}: {asin},{roi}\n")
     except Exception:
         pass
 
@@ -175,8 +204,13 @@ def join_data(profit_rows: List[Dict[str, str]], demand_rows: List[Dict[str, str
     demand_map = {r["asin"]: r for r in demand_rows}
     combined: List[Dict[str, object]] = []
     unknown: Set[str] = set()
+    unprofitable: List[dict] = []
     for p in profit_rows:
         asin = p.get("asin") or ""
+        roi_val = parse_float(p.get("roi"))
+        if roi_val is not None and roi_val <= 0:
+            unprofitable.append({"asin": asin, "roi": roi_val})
+            continue
         if not is_viable(p):
             continue
         if valid and asin and asin not in valid:
@@ -190,9 +224,15 @@ def join_data(profit_rows: List[Dict[str, str]], demand_rows: List[Dict[str, str
         print(
             "Warning: ASINs not in product_results.csv: " + ", ".join(sorted(unknown))
         )
+        log_asin_mismatch("supplier_selection", unknown)
         log(f"supplier_selection: ASIN mismatch {','.join(sorted(unknown))}")
         if not combined:
             return []
+    if unprofitable:
+        print(
+            f"Skipping {len(unprofitable)} unprofitable products (ROI ≤ 0). See {UNPROFITABLE_LOG}"
+        )
+        log_unprofitable("supplier_selection", unprofitable)
     return combined
 
 

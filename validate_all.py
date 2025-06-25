@@ -135,7 +135,7 @@ def validate_columns(df: pd.DataFrame, expected: List[str]) -> Tuple[bool, List[
     return not missing, missing
 
 
-def validate_product_results(df: pd.DataFrame) -> List[str]:
+def validate_product_results(df: pd.DataFrame) -> Tuple[List[str], int]:
     issues = []
     if (df["price"] <= 0).any():
         issues.append("non-positive price")
@@ -145,10 +145,10 @@ def validate_product_results(df: pd.DataFrame) -> List[str]:
         issues.append("non-positive units")
     if (df["total_profit"] < 0).any():
         issues.append("negative total_profit")
-    return issues
+    return issues, 0
 
 
-def validate_market_analysis(df: pd.DataFrame) -> List[str]:
+def validate_market_analysis(df: pd.DataFrame) -> Tuple[List[str], int]:
     issues = []
     if (df["price"] <= 0).any():
         issues.append("non-positive price")
@@ -160,45 +160,49 @@ def validate_market_analysis(df: pd.DataFrame) -> List[str]:
         issues.append("non-positive bsr")
     if "source" in df.columns and (df["source"].str.contains("mock", case=False)).any():
         issues.append("mock data source")
-    return issues
+    return issues, 0
 
 
-def validate_profitability(df: pd.DataFrame) -> List[str]:
+def validate_profitability(df: pd.DataFrame) -> Tuple[List[str], int]:
     issues = []
+    bad_count = 0
     if (df["price"] <= 0).any():
         issues.append("non-positive price")
     if (df["cost"] < 0).any():
         issues.append("negative cost")
     if (df["roi"] <= 0).any():
         bad = df.loc[df["roi"] <= 0, "asin"].astype(str).tolist()
+        bad_count = len(bad)
         issues.append("non-positive ROI: " + ", ".join(bad))
     if (df["profit"] <= 0).any():
         issues.append("non-positive profit")
-    return issues
+    return issues, bad_count
 
 
-def validate_demand(df: pd.DataFrame) -> List[str]:
+def validate_demand(df: pd.DataFrame) -> Tuple[List[str], int]:
     issues = []
     if (pd.to_numeric(df["est_monthly_sales"], errors="coerce") <= 0).any():
         issues.append("non-positive est_monthly_sales")
     if not df["demand_level"].isin(["HIGH", "MEDIUM", "LOW"]).all():
         issues.append("invalid demand_level")
-    return issues
+    return issues, 0
 
 
-def validate_supplier_selection(df: pd.DataFrame) -> List[str]:
+def validate_supplier_selection(df: pd.DataFrame) -> Tuple[List[str], int]:
     issues = []
+    bad_count = 0
     if (df["units_to_order"] < 0).any():
         issues.append("negative units_to_order")
     if (df["roi"] <= 0).any():
         bad = df.loc[df["roi"] <= 0, "asin"].astype(str).tolist()
+        bad_count = len(bad)
         issues.append("non-positive ROI: " + ", ".join(bad))
     if (df["total_cost"] < 0).any():
         issues.append("negative total_cost")
-    return issues
+    return issues, bad_count
 
 
-def validate_pricing(df: pd.DataFrame) -> List[str]:
+def validate_pricing(df: pd.DataFrame) -> Tuple[List[str], int]:
     issues = []
     if "Suggested Price" in df.columns:
         try:
@@ -207,10 +211,10 @@ def validate_pricing(df: pd.DataFrame) -> List[str]:
                 issues.append("non-positive Suggested Price")
         except Exception:
             issues.append("invalid Suggested Price values")
-    return issues
+    return issues, 0
 
 
-def validate_inventory(df: pd.DataFrame) -> List[str]:
+def validate_inventory(df: pd.DataFrame) -> Tuple[List[str], int]:
     issues = []
     if (df["recommended_stock"] < 0).any():
         issues.append("negative recommended_stock")
@@ -218,7 +222,7 @@ def validate_inventory(df: pd.DataFrame) -> List[str]:
         issues.append("negative stock_cost")
     if (df["projected_value"] < 0).any():
         issues.append("negative projected_value")
-    return issues
+    return issues, 0
 
 
 VALIDATORS = {
@@ -247,7 +251,17 @@ def validate_file(fname: str) -> Tuple[Optional[pd.DataFrame], Result]:
     if not ok_cols:
         return df, Result(fname, "Error", f"Missing columns: {', '.join(missing)}")
     validator = VALIDATORS.get(fname)
-    issues: List[str] = validator(df) if validator else []
+    if validator:
+        issues, bad_roi = validator(df)
+    else:
+        issues, bad_roi = [], 0
+    if bad_roi and fname in (
+        "profitability_estimation_results.csv",
+        "supplier_selection_results.csv",
+    ):
+        print(
+            f"WARNING: {bad_roi} products have ROI ≤ 0 in {fname}"
+        )
     status = "OK" if not issues else "Warning"
     message = "; ".join(issues)
     return df, Result(fname, status, message)
