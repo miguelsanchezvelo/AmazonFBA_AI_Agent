@@ -491,7 +491,8 @@ def main():
             filtered.append(p)
         if unknown:
             print(
-                "Warning: ASINs not in product_results.csv: "
+                "Warning: Skipping "
+                f"{len(unknown)} products not found in product_results.csv: "
                 + ", ".join(sorted(unknown))
             )
             log_asin_mismatch("market_analysis", unknown)
