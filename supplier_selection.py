@@ -55,6 +55,13 @@ def parse_int(val: Optional[str]) -> Optional[int]:
     return int(m.group()) if m else None
 
 
+def is_viable(row: Dict[str, str]) -> bool:
+    """Return True if the product should be processed."""
+    roi = parse_float(row.get("roi"))
+    viable_flag = str(row.get("Viable", "YES")).strip().upper()
+    return (roi is not None and roi > 0) or viable_flag == "YES"
+
+
 def load_valid_asins() -> Set[str]:
     if not os.path.exists(PRODUCT_CSV):
         return set()
@@ -170,6 +177,8 @@ def join_data(profit_rows: List[Dict[str, str]], demand_rows: List[Dict[str, str
     unknown: Set[str] = set()
     for p in profit_rows:
         asin = p.get("asin") or ""
+        if not is_viable(p):
+            continue
         if valid and asin and asin not in valid:
             unknown.add(asin)
             continue
@@ -293,6 +302,9 @@ def main(argv: Optional[List[str]] = None) -> None:
     combined = join_data(profit_rows, demand_rows)
     combined = [r for r in combined if str(r.get("demand_level")) in ("MEDIUM", "HIGH")]
     combined.sort(key=lambda x: parse_float(x.get("roi")) or 0.0, reverse=True)
+    if not combined:
+        print("No viable products for supplier selection.")
+    
     if args.budget is not None:
         budget = args.budget
     else:

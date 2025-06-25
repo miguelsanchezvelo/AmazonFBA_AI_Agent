@@ -61,6 +61,12 @@ def parse_int(val: Optional[str]) -> Optional[int]:
         return int(digits) if digits else None
 
 
+def is_viable(row: Dict[str, str]) -> bool:
+    roi = parse_float(row.get("roi"))
+    viable_flag = str(row.get("Viable", "YES")).strip().upper()
+    return (roi is not None and roi > 0) or viable_flag == "YES"
+
+
 def load_rows(path: str) -> List[Dict[str, str]]:
     if not os.path.exists(path):
         print(f"Input file '{path}' not found")
@@ -84,8 +90,8 @@ def load_rows(path: str) -> List[Dict[str, str]]:
             log(f"inventory_management: ASIN mismatch {','.join(sorted(unknown))}")
             if not filtered:
                 return []
-        return filtered
-    return rows
+        rows = filtered
+    return [r for r in rows if is_viable(r)]
 
 
 def save_rows(rows: List[Dict[str, object]], path: str) -> None:
@@ -164,6 +170,9 @@ def main(argv: Optional[List[str]] = None) -> None:
 
     rows = load_rows(INPUT_CSV)
     if not rows:
+        print("No viable supplier selections found.")
+        save_rows([], OUTPUT_CSV)
+        print(f"Results saved to {OUTPUT_CSV}")
         return
     results = process(rows)
     if results:

@@ -71,6 +71,9 @@ def estimate_profit(rows, supplier_costs):
         profit = round(price - cost - SHIPPING_COST - fba_fees, 2)
         total_cost = cost + SHIPPING_COST + fba_fees
         roi = round(profit / total_cost, 2) if total_cost else 0.0
+        viable = "YES" if roi > 0 else "NO"
+        if roi <= 0:
+            print(f"Warning: {asin or 'product'} has non-positive ROI ({roi:.2f})")
         results.append(
             {
                 "asin": asin,
@@ -82,6 +85,7 @@ def estimate_profit(rows, supplier_costs):
                 "profit": profit,
                 "roi": roi,
                 "score": row.get("score", ""),
+                "Viable": viable,
             }
         )
     return results
@@ -127,6 +131,7 @@ def save_results(rows, path: str):
             "profit",
             "roi",
             "score",
+            "Viable",
         ]
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()
@@ -134,6 +139,7 @@ def save_results(rows, path: str):
 
 
 def print_top_products(rows, count=5):
+    rows = [r for r in rows if (r.get("roi") or 0) > 0]
     rows = sorted(rows, key=lambda x: x["roi"], reverse=True)[:count]
     header = f"{'ASIN':12} | {'Price':>6} | {'Cost':>6} | {'Profit':>7} | {'ROI':>5}"
     print(header)
