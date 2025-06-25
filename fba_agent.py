@@ -19,6 +19,7 @@ except Exception:  # pragma: no cover - optional dependency
 
     class Style:  # type: ignore
         RESET_ALL = ""
+        BRIGHT = ""
 
     def colorama_init() -> None:  # type: ignore
         pass
@@ -82,6 +83,11 @@ def parse_args() -> argparse.Namespace:
         "--reset",
         action="store_true",
         help="clear previous outputs and logs before running",
+    )
+    parser.add_argument(
+        "--validate-only",
+        action="store_true",
+        help="run validation only and exit",
     )
     return parser.parse_args()
 
@@ -301,40 +307,33 @@ def _git_status() -> str:
     return ""
 
 
-def run_validation(auto_fix: bool = False) -> bool:
-    """Execute ``validate_all.py`` if available.
+def run_validation(auto_fix: bool = False) -> Tuple[str, bool]:
+    """Execute ``validate_all.py`` and return its output and modification flag."""
 
-    Returns ``True`` if files were modified when ``auto_fix`` is ``True``.
-    """
     if not os.path.exists("validate_all.py"):
         print("Validation script not found. Skipping validation step.")
         log("RESULT validation skipped missing")
-        return False
+        return "", False
 
     print("\n=== Validation Report ===")
     log("START validation")
     before = _git_status() if auto_fix else ""
+    cmd = [sys.executable, "validate_all.py"] + (["--auto-fix"] if auto_fix else [])
     try:
-        cmd = [sys.executable, "validate_all.py"] + (["--auto-fix"] if auto_fix else [])
-        proc = subprocess.Popen(
-            cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-        )
+        res = subprocess.run(cmd, capture_output=True, text=True)
     except Exception as exc:  # pragma: no cover - execution failure
         print(f"Failed to run validation script: {exc}")
         log(f"RESULT validation failed launch {exc}")
-        return False
+        return "", False
 
-    assert proc.stdout is not None
-    for line in proc.stdout:
-        print(line, end="")
-    proc.wait()
-    status = "completed" if proc.returncode == 0 else f"failed {proc.returncode}"
+    output = res.stdout + res.stderr
+    if output:
+        print(output)
+    status = "completed" if res.returncode == 0 else f"failed {res.returncode}"
     log(f"RESULT validation {status}")
     after = _git_status() if auto_fix else before
-    return auto_fix and (before != after)
+    modified = auto_fix and (before != after)
+    return output, modified
 
 
 def load_last_statuses() -> Dict[str, str]:
@@ -361,6 +360,26 @@ def load_last_statuses() -> Dict[str, str]:
 def main() -> None:
     colorama_init()
     args = parse_args()
+    if args.validate_only:
+        output, _ = run_validation(auto_fix=args.auto_fix)
+        if output:
+            issues = (
+                "Error: File not found" in output
+                or ("Error: File" in output and "is empty" in output)
+                or "ASIN missing from product_results" in output
+            )
+            if issues:
+                print(
+                    f"{Style.BRIGHT}{Fore.RED}Critical validation errors detected. "
+                    "Consider running:\n\npython reset_pipeline.py\n"
+                    "to restart the pipeline from scratch with fresh data."
+                    f"{Style.RESET_ALL}"
+                )
+            else:
+                print(
+                    f"{Fore.GREEN}Validation completed without critical issues{Style.RESET_ALL}"
+                )
+        return
     if args.reset:
         try:
             import reset_pipeline
@@ -570,7 +589,25 @@ def main() -> None:
     if suggestions:
         print("\nSubscriptions that would improve results: " + ", ".join(suggestions))
 
-    modified = run_validation(auto_fix=args.auto_fix)
+    output, modified = run_validation(auto_fix=args.auto_fix)
+
+    if output:
+        issues = (
+            "Error: File not found" in output
+            or ("Error: File" in output and "is empty" in output)
+            or "ASIN missing from product_results" in output
+        )
+        if issues:
+            print(
+                f"{Style.BRIGHT}{Fore.RED}Critical validation errors detected. "
+                "Consider running:\n\npython reset_pipeline.py\n"
+                "to restart the pipeline from scratch with fresh data."
+                f"{Style.RESET_ALL}"
+            )
+        else:
+            print(
+                f"{Fore.GREEN}Validation completed without critical issues{Style.RESET_ALL}"
+            )
 
     if args.auto_fix and modified:
         try:
