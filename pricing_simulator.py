@@ -80,15 +80,19 @@ def load_top_products(path: str, count: int = 5) -> List[Dict[str, str]]:
                 if valid and asin and asin not in valid:
                     unknown.add(asin)
                     continue
+                viable_flag = str(row.get("Viable", "YES")).strip().upper()
+                roi_val = parse_float(row.get("roi")) or 0.0
+                if roi_val <= 0 and viable_flag != "YES":
+                    continue
                 rows.append(row)
 
     if unknown:
         log(f"pricing_simulator: ASIN mismatch {','.join(sorted(unknown))}")
         if not rows:
-            raise SystemExit("ASIN mismatch with product_results.csv")
+            print("ASIN mismatch with product_results.csv")
 
     if not rows:
-        print("No products found in profitability results.")
+        print("No viable products found in profitability results.")
         return []
 
     rows.sort(key=lambda r: parse_float(r.get("profit")) or 0.0, reverse=True)
@@ -212,18 +216,8 @@ def main(argv: Optional[List[str]] = None) -> None:
     model = choose_model(client) if client else "gpt-3.5-turbo"
     products = load_top_products(INPUT_CSV)
     if not products:
-        if auto:
-            save_results([
-                {
-                    "ASIN": "B0MOCK001",
-                    "Title": "Mock Product",
-                    "Suggested Price": "$19.99",
-                    "Notes": "Fallback pricing data",
-                }
-            ], OUTPUT_CSV)
-            print(f"No input products. Created mock {OUTPUT_CSV}")
-            return
         print("No products available for pricing suggestions.")
+        save_results([], OUTPUT_CSV)
         return
 
     results: List[Dict[str, str]] = []

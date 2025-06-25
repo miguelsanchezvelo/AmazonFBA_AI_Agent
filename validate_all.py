@@ -170,7 +170,8 @@ def validate_profitability(df: pd.DataFrame) -> List[str]:
     if (df["cost"] < 0).any():
         issues.append("negative cost")
     if (df["roi"] <= 0).any():
-        issues.append("non-positive ROI")
+        bad = df.loc[df["roi"] <= 0, "asin"].astype(str).tolist()
+        issues.append("non-positive ROI: " + ", ".join(bad))
     if (df["profit"] <= 0).any():
         issues.append("non-positive profit")
     return issues
@@ -190,7 +191,8 @@ def validate_supplier_selection(df: pd.DataFrame) -> List[str]:
     if (df["units_to_order"] < 0).any():
         issues.append("negative units_to_order")
     if (df["roi"] <= 0).any():
-        issues.append("non-positive ROI")
+        bad = df.loc[df["roi"] <= 0, "asin"].astype(str).tolist()
+        issues.append("non-positive ROI: " + ", ".join(bad))
     if (df["total_cost"] < 0).any():
         issues.append("negative total_cost")
     return issues
