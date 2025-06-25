@@ -180,3 +180,17 @@ This command runs the pipeline without user prompts, fixes any broken code, and 
 
 - If Git is not configured or an error occurs, a warning will be shown but the process continues.
 - You are encouraged to review changes using GitHub or `git diff` before deploying to production.
+
+## 🔄 Resetting the Pipeline
+
+To clean up the project and reset the pipeline, run:
+
+```bash
+python reset_pipeline.py
+```
+
+You can also do this automatically by adding the --reset flag to `fba_agent.py`:
+
+```bash
+python fba_agent.py --auto --reset
+```
