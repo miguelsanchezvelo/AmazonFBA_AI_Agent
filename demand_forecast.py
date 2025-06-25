@@ -5,6 +5,7 @@ import time
 from typing import List, Dict, Optional, Set
 
 LOG_FILE = "log.txt"
+ASIN_LOG = os.path.join("logs", "asin_mismatch.log")
 
 
 def log(msg: str) -> None:
@@ -12,6 +13,19 @@ def log(msg: str) -> None:
     try:
         with open(LOG_FILE, "a", encoding="utf-8") as f:
             f.write(f"{ts} {msg}\n")
+    except Exception:
+        pass
+
+
+def log_asin_mismatch(module: str, asins: Set[str]) -> None:
+    if not asins:
+        return
+    os.makedirs(os.path.dirname(ASIN_LOG), exist_ok=True)
+    try:
+        with open(ASIN_LOG, "a", encoding="utf-8") as f:
+            f.write(
+                f"{time.strftime('%Y-%m-%d %H:%M:%S')} {module}: {','.join(sorted(asins))}\n"
+            )
     except Exception:
         pass
 
@@ -120,6 +134,7 @@ def process(rows: List[Dict[str, str]]) -> List[Dict[str, str]]:
     if unknown:
         msg = f"ASINs not in product_results.csv: {', '.join(sorted(unknown))}"
         print(f"Warning: {msg}. Consider rerunning product_discovery.py.")
+        log_asin_mismatch("demand_forecast", unknown)
         log(f"demand_forecast: ASIN mismatch {','.join(sorted(unknown))}")
         if not results:
             return []

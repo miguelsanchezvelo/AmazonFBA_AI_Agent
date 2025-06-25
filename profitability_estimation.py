@@ -6,6 +6,8 @@ import time
 from typing import List, Optional, Set
 
 LOG_FILE = "log.txt"
+ASIN_LOG = os.path.join("logs", "asin_mismatch.log")
+UNPROFITABLE_LOG = os.path.join("logs", "unprofitable_products.log")
 
 
 def log(msg: str) -> None:
@@ -13,6 +15,33 @@ def log(msg: str) -> None:
     try:
         with open(LOG_FILE, "a", encoding="utf-8") as f:
             f.write(f"{ts} {msg}\n")
+    except Exception:
+        pass
+
+
+def log_asin_mismatch(module: str, asins: Set[str]) -> None:
+    if not asins:
+        return
+    os.makedirs(os.path.dirname(ASIN_LOG), exist_ok=True)
+    try:
+        with open(ASIN_LOG, "a", encoding="utf-8") as f:
+            f.write(
+                f"{time.strftime('%Y-%m-%d %H:%M:%S')} {module}: {','.join(sorted(asins))}\n"
+            )
+    except Exception:
+        pass
+
+
+def log_unprofitable(module: str, rows: List[dict]) -> None:
+    if not rows:
+        return
+    os.makedirs(os.path.dirname(UNPROFITABLE_LOG), exist_ok=True)
+    try:
+        with open(UNPROFITABLE_LOG, "a", encoding="utf-8") as f:
+            for r in rows:
+                asin = r.get("asin", "")
+                roi = r.get("roi", 0)
+                f.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')} {module}: {asin},{roi}\n")
     except Exception:
         pass
 
@@ -61,6 +90,7 @@ def load_supplier_costs(path: str) -> dict:
 
 def estimate_profit(rows, supplier_costs):
     results = []
+    unprofitable: List[dict] = []
     for row in rows:
         price = parse_float(row.get("price"))
         if price is None:
@@ -73,7 +103,8 @@ def estimate_profit(rows, supplier_costs):
         roi = round(profit / total_cost, 2) if total_cost else 0.0
         viable = "YES" if roi > 0 else "NO"
         if roi <= 0:
-            print(f"Warning: {asin or 'product'} has non-positive ROI ({roi:.2f})")
+            unprofitable.append({"asin": asin, "roi": roi})
+            continue
         results.append(
             {
                 "asin": asin,
@@ -88,6 +119,11 @@ def estimate_profit(rows, supplier_costs):
                 "Viable": viable,
             }
         )
+    if unprofitable:
+        print(
+            f"Skipping {len(unprofitable)} unprofitable products (ROI ≤ 0). See {UNPROFITABLE_LOG}"
+        )
+        log_unprofitable("profitability_estimation", unprofitable)
     return results
 
 
@@ -109,8 +145,10 @@ def load_market_data(path: str):
             filtered.append(r)
         if unknown:
             print(
-                "Warning: ASINs not in product_results.csv: " + ", ".join(sorted(unknown))
+                "Warning: ASINs not in product_results.csv: "
+                + ", ".join(sorted(unknown))
             )
+            log_asin_mismatch("profitability_estimation", unknown)
             log(f"profitability_estimation: ASIN mismatch {','.join(sorted(unknown))}")
             if not filtered:
                 return []
