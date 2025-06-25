@@ -78,9 +78,12 @@ def load_rows(path: str) -> List[Dict[str, str]]:
                 continue
             filtered.append(r)
         if unknown:
+            print(
+                "Warning: ASINs not in product_results.csv: " + ", ".join(sorted(unknown))
+            )
             log(f"inventory_management: ASIN mismatch {','.join(sorted(unknown))}")
             if not filtered:
-                raise SystemExit("ASIN mismatch with product_results.csv")
+                return []
         return filtered
     return rows
 

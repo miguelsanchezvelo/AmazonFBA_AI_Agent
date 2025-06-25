@@ -34,6 +34,8 @@ CONFIG_PATH = "config.json"
 LOG_FILE = "log.txt"
 OPENAI_MODEL = "gpt-4"
 
+DEFAULT_BUDGET = 1500.0
+
 
 OUTPUTS: Dict[str, str] = {
     "product_discovery": os.path.join(DATA_DIR, "product_results.csv"),
@@ -49,6 +51,18 @@ OUTPUTS: Dict[str, str] = {
     "email_manager": "email_logs",
     "order_placement_agent": os.path.join("logs", "order_confirmation_log.txt"),
 }
+
+STEP_INPUTS = {
+    "market_analysis": [OUTPUTS["product_discovery"]],
+    "review_analysis": [OUTPUTS["market_analysis"]],
+    "profitability_estimation": [OUTPUTS["market_analysis"]],
+    "demand_forecast": [OUTPUTS["market_analysis"]],
+    "supplier_selection": [OUTPUTS["profitability_estimation"], OUTPUTS["demand_forecast"]],
+    "supplier_contact_generator": [OUTPUTS["supplier_selection"]],
+    "pricing_simulator": [OUTPUTS["profitability_estimation"]],
+    "inventory_management": [OUTPUTS["supplier_selection"]],
+    "order_placement_agent": [OUTPUTS["supplier_selection"], OUTPUTS["supplier_contact_generator"]],
+};
 
 
 def parse_args() -> argparse.Namespace:
@@ -362,7 +376,7 @@ def main() -> None:
     ensure_mock_data(services)
 
     if args.auto:
-        budget = 1500.0
+        budget = DEFAULT_BUDGET
     else:
         while True:
             try:
@@ -397,7 +411,13 @@ def main() -> None:
             True,
         ),
         ("supplier_contact_generator", ["supplier_contact_generator.py"], None, [OUTPUTS["supplier_contact_generator"]], services["OpenAI"] and services[OPENAI_MODEL]),
-        ("pricing_simulator", ["pricing_simulator.py"], None, [OUTPUTS["pricing_simulator"]], services["OpenAI"] and services[OPENAI_MODEL]),
+        (
+            "pricing_simulator",
+            ["pricing_simulator.py"] + (["--auto"] if args.auto else []),
+            None,
+            [OUTPUTS["pricing_simulator"]],
+            services["OpenAI"] and services[OPENAI_MODEL],
+        ),
         ("inventory_management", ["inventory_management.py"], None, [OUTPUTS["inventory_management"]], True),
         (
             "negotiation_agent",
@@ -451,6 +471,14 @@ def main() -> None:
             log(f"RESULT {name} skipped 0s service")
             statuses[name] = "skipped"
             continue
+        reqs = STEP_INPUTS.get(name)
+        if reqs and not all(_file_has_rows(p) for p in reqs):
+            print(
+                f"{Fore.YELLOW}! {name} skipped because required inputs are missing or empty{Style.RESET_ALL}"
+            )
+            log(f"RESULT {name} skipped 0s missing_input")
+            statuses[name] = "skipped"
+            continue
         if name == "review_analysis" and not os.path.exists(OUTPUTS["market_analysis"]):
             print(
                 f"{Fore.YELLOW}! {name} skipped because market_analysis results are missing{Style.RESET_ALL}"
@@ -480,11 +508,14 @@ def main() -> None:
         statuses[name] = status
         if status in {"completed", "reused"}:
             for p in paths:
-                if os.path.exists(p):
-                    generated.append(p)
-                    if not _file_has_rows(p):
-                        print(f"{Fore.YELLOW}! {p} is empty{Style.RESET_ALL}")
-                        log(f"WARNING empty_output {p}")
+                if not os.path.exists(p):
+                    print(f"{Fore.YELLOW}! Expected output {p} not found{Style.RESET_ALL}")
+                    log(f"WARNING missing_output {p}")
+                    continue
+                generated.append(p)
+                if not _file_has_rows(p):
+                    print(f"{Fore.YELLOW}! {p} is empty{Style.RESET_ALL}")
+                    log(f"WARNING empty_output {p}")
 
     total_time = time.time() - pipeline_start
 
