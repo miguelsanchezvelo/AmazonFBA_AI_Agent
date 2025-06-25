@@ -8,49 +8,58 @@ intentionally fake but formatted so that downstream scripts and the
 validation tool can run without external dependencies.
 """
 
+import argparse
 import csv
 import os
-from typing import List, Dict
+from typing import List, Dict, Optional
 
 DATA_DIR = "data"
 MSG_DIR = "supplier_messages"
 
+MOCK_ASINS = [
+    ("B0MOCK001", "Mock Product 1"),
+    ("B0MOCK002", "Mock Product 2"),
+    ("B0MOCK003", "Mock Product 3"),
+    ("B0MOCK004", "Mock Product 4"),
+    ("B0MOCK005", "Mock Product 5"),
+]
+
 PRODUCTS = [
     {
-        "asin": "B0ABCDE001",
-        "title": "Stainless Steel Mixing Bowl Set",
+        "asin": MOCK_ASINS[0][0],
+        "title": MOCK_ASINS[0][1],
         "price": 25.99,
         "rating": 4.7,
         "reviews": 820,
         "bsr": 350,
     },
     {
-        "asin": "B0ABCDE002",
-        "title": "Non-Stick Frying Pan 12 Inch",
+        "asin": MOCK_ASINS[1][0],
+        "title": MOCK_ASINS[1][1],
         "price": 32.50,
         "rating": 4.6,
         "reviews": 560,
         "bsr": 450,
     },
     {
-        "asin": "B0ABCDE003",
-        "title": "Adjustable Dumbbell Set 20lb",
+        "asin": MOCK_ASINS[2][0],
+        "title": MOCK_ASINS[2][1],
         "price": 40.00,
         "rating": 4.2,
         "reviews": 210,
         "bsr": 900,
     },
     {
-        "asin": "B0ABCDE004",
-        "title": "Yoga Mat Eco-Friendly 6mm",
+        "asin": MOCK_ASINS[3][0],
+        "title": MOCK_ASINS[3][1],
         "price": 23.99,
         "rating": 4.1,
         "reviews": 150,
         "bsr": 1200,
     },
     {
-        "asin": "B0ABCDE005",
-        "title": "Baby Swaddle Blanket",
+        "asin": MOCK_ASINS[4][0],
+        "title": MOCK_ASINS[4][1],
         "price": 18.50,
         "rating": 4.5,
         "reviews": 300,
@@ -66,7 +75,14 @@ def ensure_dirs() -> None:
     os.makedirs(MSG_DIR, exist_ok=True)
 
 
-def write_csv(path: str, fieldnames: List[str], rows: List[Dict[str, object]]) -> None:
+def write_csv(
+    path: str,
+    fieldnames: List[str],
+    rows: List[Dict[str, object]],
+    overwrite: bool = False,
+) -> None:
+    if not overwrite and os.path.exists(path) and os.path.getsize(path) > 0:
+        return
     with open(path, "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()
@@ -262,7 +278,7 @@ def generate_emails(selection_rows: List[Dict[str, object]]) -> str:
     return "\n" + ("-" * 40 + "\n").join(messages)
 
 
-def generate_message_files(selection_rows: List[Dict[str, object]]) -> None:
+def generate_message_files(selection_rows: List[Dict[str, object]], overwrite: bool = False) -> None:
     for row in selection_rows:
         asin = row["asin"]
         text = (
@@ -270,18 +286,30 @@ def generate_message_files(selection_rows: List[Dict[str, object]]) -> None:
             "Please send pricing and lead time information.\n"
         )
         path = os.path.join(MSG_DIR, f"{asin}.txt")
+        if not overwrite and os.path.exists(path):
+            continue
         with open(path, "w", encoding="utf-8") as f:
             f.write(text)
 
 
-def main() -> None:
+def main(argv: Optional[List[str]] = None) -> None:
+    parser = argparse.ArgumentParser(description="Generate mock data for the full pipeline")
+    parser.add_argument(
+        "--full",
+        action="store_true",
+        help="overwrite existing files instead of keeping them",
+    )
+    args = parser.parse_args(argv)
+
     ensure_dirs()
+    overwrite = args.full
 
     product_rows = generate_product_results()
     write_csv(
         os.path.join(DATA_DIR, "product_results.csv"),
         ["title", "asin", "estimated_asin", "price", "margin", "units", "total_profit"],
         product_rows,
+        overwrite,
     )
 
     market_rows = generate_market_analysis()
@@ -300,6 +328,7 @@ def main() -> None:
             "potential",
         ],
         market_rows,
+        overwrite,
     )
 
     review_rows = generate_review_analysis()
@@ -307,6 +336,7 @@ def main() -> None:
         os.path.join(DATA_DIR, "review_analysis_results.csv"),
         ["asin", "title", "positives", "negatives", "diffs"],
         review_rows,
+        overwrite,
     )
 
     profit_rows = generate_profitability()
@@ -324,6 +354,7 @@ def main() -> None:
             "score",
         ],
         profit_rows,
+        overwrite,
     )
 
     demand_rows = generate_demand(market_rows)
@@ -331,6 +362,7 @@ def main() -> None:
         os.path.join(DATA_DIR, "demand_forecast_results.csv"),
         ["asin", "title", "bsr", "est_monthly_sales", "demand_level"],
         demand_rows,
+        overwrite,
     )
 
     selection_rows = generate_supplier_selection(profit_rows, demand_rows)
@@ -349,6 +381,7 @@ def main() -> None:
             "estimated_profit",
         ],
         selection_rows,
+        overwrite,
     )
 
     pricing_rows = generate_pricing(profit_rows)
@@ -356,6 +389,7 @@ def main() -> None:
         os.path.join(DATA_DIR, "pricing_suggestions.csv"),
         ["ASIN", "Title", "Suggested Price", "Notes"],
         pricing_rows,
+        overwrite,
     )
 
     inventory_rows = generate_inventory(selection_rows)
@@ -363,14 +397,17 @@ def main() -> None:
         os.path.join(DATA_DIR, "inventory_management_results.csv"),
         ["asin", "title", "recommended_stock", "stock_cost", "projected_value"],
         inventory_rows,
+        overwrite,
     )
 
     # Create supplier emails and message files
     emails = generate_emails(selection_rows)
-    with open(os.path.join(DATA_DIR, "supplier_emails.txt"), "w", encoding="utf-8") as f:
-        f.write(emails)
+    email_path = os.path.join(DATA_DIR, "supplier_emails.txt")
+    if overwrite or not os.path.exists(email_path):
+        with open(email_path, "w", encoding="utf-8") as f:
+            f.write(emails)
 
-    generate_message_files(selection_rows)
+    generate_message_files(selection_rows, overwrite)
 
     print("Mock data written to 'data/' and 'supplier_messages/'")
 

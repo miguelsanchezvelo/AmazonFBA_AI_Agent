@@ -132,8 +132,11 @@ def process(rows: List[Dict[str, str]]) -> List[Dict[str, str]]:
             }
         )
     if unknown:
-        msg = f"ASINs not in product_results.csv: {', '.join(sorted(unknown))}"
-        print(f"Warning: {msg}. Consider rerunning product_discovery.py.")
+        print(
+            "Warning: Skipping "
+            f"{len(unknown)} products not found in product_results.csv: "
+            + ", ".join(sorted(unknown))
+        )
         log_asin_mismatch("demand_forecast", unknown)
         log(f"demand_forecast: ASIN mismatch {','.join(sorted(unknown))}")
         if not results:

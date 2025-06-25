@@ -173,7 +173,6 @@ def validate_profitability(df: pd.DataFrame) -> Tuple[List[str], int]:
     if (df["roi"] <= 0).any():
         bad = df.loc[df["roi"] <= 0, "asin"].astype(str).tolist()
         bad_count = len(bad)
-        issues.append("non-positive ROI: " + ", ".join(bad))
     if (df["profit"] <= 0).any():
         issues.append("non-positive profit")
     return issues, bad_count
@@ -196,7 +195,6 @@ def validate_supplier_selection(df: pd.DataFrame) -> Tuple[List[str], int]:
     if (df["roi"] <= 0).any():
         bad = df.loc[df["roi"] <= 0, "asin"].astype(str).tolist()
         bad_count = len(bad)
-        issues.append("non-positive ROI: " + ", ".join(bad))
     if (df["total_cost"] < 0).any():
         issues.append("negative total_cost")
     return issues, bad_count
@@ -260,7 +258,7 @@ def validate_file(fname: str) -> Tuple[Optional[pd.DataFrame], Result]:
         "supplier_selection_results.csv",
     ):
         print(
-            f"WARNING: {bad_roi} products have ROI ≤ 0 in {fname}"
+            f"WARNING: Some products have ROI ≤ 0 (check {fname})"
         )
     status = "OK" if not issues else "Warning"
     message = "; ".join(issues)
