@@ -323,7 +323,13 @@ def main() -> None:
         results.append(res)
 
     results.extend(cross_check(all_data))
+
     print_summary(results)
+    if any(r.status != "OK" for r in results):
+        print("\nSuggested Fix:")
+        print(
+            "Run `python mock_data_generator.py` to regenerate missing or invalid files using mock data."
+        )
 
 
 if __name__ == "__main__":
