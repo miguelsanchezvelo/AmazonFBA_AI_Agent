@@ -176,21 +176,23 @@ python fba_agent.py --auto --auto-fix
 
 This command runs the pipeline without user prompts, fixes any broken code, and commits the results automatically if needed.
 
+Use `--validate-only` to run only the validation report:
+
+```bash
+python fba_agent.py --validate-only
+```
+
 ### Notes
 
 - If Git is not configured or an error occurs, a warning will be shown but the process continues.
 - You are encouraged to review changes using GitHub or `git diff` before deploying to production.
 
-## 🔄 Resetting the Pipeline
+## 🛠 Resetting the pipeline
 
-To clean up the project and reset the pipeline, run:
+If the validation report indicates critical errors (e.g., missing files or inconsistent ASINs),
+you can reset the project by running:
 
 ```bash
 python reset_pipeline.py
 ```
-
-You can also do this automatically by adding the --reset flag to `fba_agent.py`:
-
-```bash
-python fba_agent.py --auto --reset
-```
+This will clear all generated outputs so the next run starts clean.

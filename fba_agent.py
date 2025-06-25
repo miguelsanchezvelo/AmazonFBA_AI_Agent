@@ -370,9 +370,9 @@ def main() -> None:
             )
             if issues:
                 print(
-                    f"{Style.BRIGHT}{Fore.RED}Critical validation errors detected. "
-                    "Consider running:\n\npython reset_pipeline.py\n"
-                    "to restart the pipeline from scratch with fresh data."
+                    f"{Style.BRIGHT}{Fore.RED}🚨 Critical validation issues detected.\n"
+                    "Run the following command to reset and regenerate all data from scratch:\n\n"
+                    "    python reset_pipeline.py"
                     f"{Style.RESET_ALL}"
                 )
             else:
@@ -599,9 +599,9 @@ def main() -> None:
         )
         if issues:
             print(
-                f"{Style.BRIGHT}{Fore.RED}Critical validation errors detected. "
-                "Consider running:\n\npython reset_pipeline.py\n"
-                "to restart the pipeline from scratch with fresh data."
+                f"{Style.BRIGHT}{Fore.RED}🚨 Critical validation issues detected.\n"
+                "Run the following command to reset and regenerate all data from scratch:\n\n"
+                "    python reset_pipeline.py"
                 f"{Style.RESET_ALL}"
             )
         else:
