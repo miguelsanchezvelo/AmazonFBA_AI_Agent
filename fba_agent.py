@@ -219,10 +219,27 @@ def run_step(args: List[str], step: str, input_data: str | None = None, *, auto:
         return "completed", duration
 
 
-def check_output_exists(paths: List[str]) -> bool:
-    """Return ``True`` if all files exist."""
+def _file_has_rows(path: str) -> bool:
+    """Return ``True`` if CSV/dir has content beyond a header."""
 
-    return all(os.path.exists(p) for p in paths)
+    if os.path.isdir(path):
+        try:
+            return bool(os.listdir(path))
+        except Exception:
+            return False
+    if not os.path.exists(path):
+        return False
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            return sum(1 for _ in f) > 1
+    except Exception:
+        return False
+
+
+def check_output_exists(paths: List[str]) -> bool:
+    """Return ``True`` if all files exist and contain data."""
+
+    return all(_file_has_rows(p) for p in paths)
 
 
 def ensure_mock_data(services: Dict[str, bool]) -> None:
@@ -345,7 +362,7 @@ def main() -> None:
     ensure_mock_data(services)
 
     if args.auto:
-        budget = 1000.0
+        budget = 1500.0
     else:
         while True:
             try:
@@ -372,7 +389,13 @@ def main() -> None:
         ),
         ("profitability_estimation", ["profitability_estimation.py"], None, [OUTPUTS["profitability_estimation"]], True),
         ("demand_forecast", ["demand_forecast.py"], None, [OUTPUTS["demand_forecast"]], True),
-        ("supplier_selection", ["supplier_selection.py"], f"{budget}\n", [OUTPUTS["supplier_selection"]], True),
+        (
+            "supplier_selection",
+            ["supplier_selection.py", "--budget", str(budget)],
+            None,
+            [OUTPUTS["supplier_selection"]],
+            True,
+        ),
         ("supplier_contact_generator", ["supplier_contact_generator.py"], None, [OUTPUTS["supplier_contact_generator"]], services["OpenAI"] and services[OPENAI_MODEL]),
         ("pricing_simulator", ["pricing_simulator.py"], None, [OUTPUTS["pricing_simulator"]], services["OpenAI"] and services[OPENAI_MODEL]),
         ("inventory_management", ["inventory_management.py"], None, [OUTPUTS["inventory_management"]], True),
@@ -456,7 +479,12 @@ def main() -> None:
             return
         statuses[name] = status
         if status in {"completed", "reused"}:
-            generated.extend(p for p in paths if os.path.exists(p))
+            for p in paths:
+                if os.path.exists(p):
+                    generated.append(p)
+                    if not _file_has_rows(p):
+                        print(f"{Fore.YELLOW}! {p} is empty{Style.RESET_ALL}")
+                        log(f"WARNING empty_output {p}")
 
     total_time = time.time() - pipeline_start
 

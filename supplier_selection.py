@@ -146,9 +146,18 @@ MOCK_DEMAND_ROWS = [
 
 
 def ensure_mock_data():
-    if not os.path.exists(PROFITABILITY_CSV):
+    def _empty(path: str) -> bool:
+        if not os.path.exists(path):
+            return True
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                return sum(1 for _ in f) <= 1
+        except Exception:
+            return True
+
+    if _empty(PROFITABILITY_CSV):
         save_csv(MOCK_PROFIT_ROWS, PROFITABILITY_CSV, list(MOCK_PROFIT_ROWS[0].keys()))
-    if not os.path.exists(DEMAND_CSV):
+    if _empty(DEMAND_CSV):
         save_csv(MOCK_DEMAND_ROWS, DEMAND_CSV, list(MOCK_DEMAND_ROWS[0].keys()))
 
 
@@ -158,15 +167,20 @@ def join_data(profit_rows: List[Dict[str, str]], demand_rows: List[Dict[str, str
     valid = load_valid_asins()
     demand_map = {r["asin"]: r for r in demand_rows}
     combined: List[Dict[str, object]] = []
+    unknown: Set[str] = set()
     for p in profit_rows:
         asin = p.get("asin") or ""
         if valid and asin and asin not in valid:
-            log(f"supplier_selection: unknown ASIN {asin}")
+            unknown.add(asin)
             continue
         d = demand_map.get(asin)
         if not d:
             continue
         combined.append({**p, **d})
+    if unknown:
+        log(f"supplier_selection: ASIN mismatch {','.join(sorted(unknown))}")
+        if not combined:
+            raise SystemExit("ASIN mismatch with product_results.csv")
     return combined
 
 

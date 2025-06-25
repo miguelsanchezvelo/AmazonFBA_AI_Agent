@@ -26,6 +26,13 @@ except ImportError:  # pragma: no cover - optional dependency
 INPUT_CSV = os.path.join("data", "market_analysis_results.csv")
 MOCK_CSV = os.path.join("data", "mock_market_data.csv")
 OUTPUT_CSV = os.path.join("data", "demand_forecast_results.csv")
+FALLBACK_ROW = {
+    "asin": "B0MOCK001",
+    "title": "Mock Product",
+    "bsr": 1000,
+    "est_monthly_sales": 300,
+    "demand_level": "MEDIUM",
+}
 
 
 def load_valid_asins() -> Set[str]:
@@ -79,21 +86,23 @@ def choose_input() -> List[Dict[str, str]]:
     if not rows:
         rows = load_rows(MOCK_CSV)
         if not rows:
-            print("No input CSV files found. Exiting.")
-            raise SystemExit(1)
-        print(
-            "⚠️ Using mock data from 'data/mock_market_data.csv' for demand forecast"
-        )
+            print("No input CSV files found. Generating minimal mock data.")
+            rows = [FALLBACK_ROW]
+        else:
+            print(
+                "⚠️ Using mock data from 'data/mock_market_data.csv' for demand forecast"
+            )
     return rows
 
 
 def process(rows: List[Dict[str, str]]) -> List[Dict[str, str]]:
     valid = load_valid_asins()
     results: List[Dict[str, str]] = []
+    unknown: Set[str] = set()
     for row in rows:
         asin = row.get("asin", "")
         if valid and asin and asin not in valid:
-            log(f"demand_forecast: unknown ASIN {asin}")
+            unknown.add(asin)
             continue
         title = row.get("title", "")
         bsr = parse_bsr(row.get("bsr"))
@@ -108,11 +117,17 @@ def process(rows: List[Dict[str, str]]) -> List[Dict[str, str]]:
                 "demand_level": level,
             }
         )
+    if unknown:
+        log(f"demand_forecast: ASIN mismatch {','.join(sorted(unknown))}")
+        if not results:
+            raise SystemExit("ASIN mismatch with product_results.csv")
     return results
 
 
 def save_results(rows: List[Dict[str, str]]):
     os.makedirs(os.path.dirname(OUTPUT_CSV), exist_ok=True)
+    if not rows:
+        rows = [FALLBACK_ROW]
     with open(OUTPUT_CSV, "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(
             f,
