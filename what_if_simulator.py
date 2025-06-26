@@ -66,7 +66,16 @@ def compute_metrics(df: "pd.DataFrame") -> "pd.DataFrame":
     profit = (df["price"] - df["cost"]) * df["units"]
     roi = (df["price"] - df["cost"]) / df["cost"].replace(0, float("nan"))
     proj = df["price"] * df["units"]
-    return pd.DataFrame({"ASIN": df["ASIN"], "Title": df["Title"], "Profit": profit, "ROI": roi, "Projected Value": proj})
+    return pd.DataFrame(
+        {
+            "ASIN": df["ASIN"],
+            "Title": df["Title"],
+            "Profit": profit,
+            "ROI": roi,
+            "Projected Value": proj,
+            "Demand": df.get("demand", ""),
+        }
+    )
 
 
 def abbreviate_title(title: str, asin: str, words: int = 4) -> str:
@@ -94,6 +103,12 @@ def run_app(df: "pd.DataFrame") -> None:
     st.title("What-If Simulator")
     st.write("Adjust price, cost, units and demand to explore profitability scenarios.")
 
+    label_choice = st.selectbox(
+        "X-axis label",
+        options=["ASIN", "Product Name"],
+        index=1,
+    )
+
     demand_opts = ["LOW", "MEDIUM", "HIGH"]
     column_config = {
         "price": st.column_config.NumberColumn(min_value=0.0, step=0.5, format="%.2f"),
@@ -117,9 +132,12 @@ def run_app(df: "pd.DataFrame") -> None:
     metrics.loc[dups, "Short Title"] = (
         metrics.loc[dups, "Short Title"] + " (" + metrics.loc[dups, "ASIN"] + ")"
     )
+    metrics["Label"] = metrics["ASIN"] if label_choice == "ASIN" else metrics["Short Title"]
 
     st.subheader("Projected Metrics")
-    st.dataframe(metrics.drop(columns=["Short Title"]), use_container_width=True)
+    st.dataframe(
+        metrics.drop(columns=["Short Title", "Label"]), use_container_width=True
+    )
 
     total_profit = metrics["Profit"].sum()
     mean_roi = metrics["ROI"].fillna(0).mean()
@@ -138,19 +156,26 @@ def run_app(df: "pd.DataFrame") -> None:
                 alt.Chart(metrics)
                 .mark_bar()
                 .encode(
-                    x=alt.X("Short Title:N", title="Product", sort=None),
+                    x=alt.X(
+                        "Label:N",
+                        title=label_choice,
+                        sort=None,
+                        axis=alt.Axis(labelAngle=-30),
+                    ),
                     y=alt.Y("Profit:Q", title="Profit"),
                     tooltip=[
                         alt.Tooltip("Title:N", title="Title"),
                         alt.Tooltip("ASIN:N", title="ASIN"),
+                        alt.Tooltip("ROI:Q", format=".2f", title="ROI"),
                         alt.Tooltip("Profit:Q", format=".2f", title="Profit"),
+                        alt.Tooltip("Demand:N", title="Demand"),
                     ],
                 )
-                .properties(width=700)
+                .properties(width=800)
             )
             st.altair_chart(chart, use_container_width=False)
         else:
-            st.bar_chart(metrics.set_index("Short Title")["Profit"])
+            st.bar_chart(metrics.set_index("Label")["Profit"])
     except Exception:
         pass
 
