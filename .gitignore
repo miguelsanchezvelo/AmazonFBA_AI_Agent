@@ -8,3 +8,4 @@ __pycache__/
 /data/product_results.csv
 /data/market_analysis_results.csv
 test_report.log
+.streamlit/

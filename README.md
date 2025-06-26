@@ -182,6 +182,18 @@ Use `--validate-only` to run only the validation report:
 python fba_agent.py --validate-only
 ```
 
+## 🚀 Streamlit Interface
+
+An optional Streamlit UI centralizes all interactions and visualizations. Run it with:
+
+```bash
+streamlit run ui.py
+```
+
+Add `-- --auto` to automatically run the pipeline without prompts or `-- --headless` to execute the CLI pipeline.
+
+The UI shows each pipeline step as a vertical timeline, lets you run steps individually, edit supplier messages, and explore generated CSV results.
+
 ### Notes
 
 - If Git is not configured or an error occurs, a warning will be shown but the process continues.
