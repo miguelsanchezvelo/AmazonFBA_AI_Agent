@@ -121,6 +121,12 @@ def main() -> None:
     for row in results:
         print(f"{row[0]:30} {row[1]:>8} {row[2]:>8} {row[3]:>8}")
 
+    test_reset_pipeline()
+
+
+def test_reset_pipeline() -> None:
+    subprocess.run([sys.executable, "reset_pipeline.py"], check=True)
+
 
 if __name__ == "__main__":
     main()
