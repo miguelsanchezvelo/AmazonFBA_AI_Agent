@@ -30,16 +30,28 @@ STEPS: List[Tuple[str, List[str]]] = [
 
 
 def run_script(args: List[str], input_data: str | None = None) -> Tuple[bool, str]:
-    """Run a script and return ``(success, output)``."""
+    """Run a script and return ``(success, output)`` with real-time logging."""
     try:
-        res = subprocess.run(
+        proc = subprocess.Popen(
             [sys.executable] + args,
-            input=input_data,
-            capture_output=True,
+            stdin=subprocess.PIPE if input_data else None,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
             text=True,
+            bufsize=1,
         )
-        out = res.stdout + res.stderr
-        return res.returncode == 0, out
+        if input_data and proc.stdin:
+            proc.stdin.write(input_data)
+            proc.stdin.close()
+        lines: List[str] = []
+        placeholder = st.empty()
+        assert proc.stdout  # for type checkers
+        for line in proc.stdout:
+            lines.append(line)
+            placeholder.text("".join(lines))
+        proc.wait()
+        out = "".join(lines)
+        return proc.returncode == 0, out
     except Exception as exc:  # pragma: no cover - execution error
         return False, str(exc)
 
