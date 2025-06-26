@@ -190,7 +190,12 @@ An optional Streamlit UI centralizes all interactions and visualizations. Run it
 streamlit run ui.py
 ```
 
-Add `-- --auto` to automatically run the pipeline without prompts or `-- --headless` to execute the CLI pipeline.
+Add `-- --auto` to automatically run the pipeline without prompts or `-- --headless` to execute the CLI pipeline. Examples:
+
+```bash
+streamlit run ui.py -- --auto             # automatic pipeline via the UI
+streamlit run ui.py -- --headless --auto  # run the CLI pipeline automatically
+```
 
 The UI shows each pipeline step as a vertical timeline, lets you run steps individually, edit supplier messages, and explore generated CSV results.
 
