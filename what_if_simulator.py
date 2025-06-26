@@ -16,6 +16,11 @@ try:
 except Exception:  # pragma: no cover - optional dependency
     st = None  # type: ignore
 
+try:
+    import altair as alt  # type: ignore
+except Exception:  # pragma: no cover - optional dependency
+    alt = None  # type: ignore
+
 PRODUCT_CSV = os.path.join("data", "product_results.csv")
 
 
@@ -64,6 +69,14 @@ def compute_metrics(df: "pd.DataFrame") -> "pd.DataFrame":
     return pd.DataFrame({"ASIN": df["ASIN"], "Title": df["Title"], "Profit": profit, "ROI": roi, "Projected Value": proj})
 
 
+def abbreviate_title(title: str, asin: str, words: int = 4) -> str:
+    """Return shortened title using a few words with ASIN fallback."""
+    if not title or str(title).strip() == "" or str(title).lower() == "nan":
+        return asin
+    short = " ".join(str(title).split()[:words])
+    return short if short else asin
+
+
 def run_app(df: "pd.DataFrame") -> None:
     """Launch the Streamlit app."""
     if st is None:  # pragma: no cover - streamlit missing
@@ -72,6 +85,11 @@ def run_app(df: "pd.DataFrame") -> None:
             "Install it with `pip install streamlit` and run `streamlit run what_if_simulator.py`."
         )
         return
+
+    try:  # pragma: no cover - optional API
+        st.set_page_config(layout="wide")
+    except Exception:
+        pass
 
     st.title("What-If Simulator")
     st.write("Adjust price, cost, units and demand to explore profitability scenarios.")
@@ -92,8 +110,16 @@ def run_app(df: "pd.DataFrame") -> None:
     )
 
     metrics = compute_metrics(edited)
+    metrics["Short Title"] = metrics.apply(
+        lambda r: abbreviate_title(r["Title"], r["ASIN"]), axis=1
+    )
+    dups = metrics["Short Title"].duplicated(keep=False)
+    metrics.loc[dups, "Short Title"] = (
+        metrics.loc[dups, "Short Title"] + " (" + metrics.loc[dups, "ASIN"] + ")"
+    )
+
     st.subheader("Projected Metrics")
-    st.dataframe(metrics, use_container_width=True)
+    st.dataframe(metrics.drop(columns=["Short Title"]), use_container_width=True)
 
     total_profit = metrics["Profit"].sum()
     mean_roi = metrics["ROI"].fillna(0).mean()
@@ -107,7 +133,24 @@ def run_app(df: "pd.DataFrame") -> None:
 
     try:  # pragma: no cover - optional chart
         st.subheader("Profit by Product")
-        st.bar_chart(metrics.set_index("ASIN")["Profit"])
+        if alt is not None:
+            chart = (
+                alt.Chart(metrics)
+                .mark_bar()
+                .encode(
+                    x=alt.X("Short Title:N", title="Product", sort=None),
+                    y=alt.Y("Profit:Q", title="Profit"),
+                    tooltip=[
+                        alt.Tooltip("Title:N", title="Title"),
+                        alt.Tooltip("ASIN:N", title="ASIN"),
+                        alt.Tooltip("Profit:Q", format=".2f", title="Profit"),
+                    ],
+                )
+                .properties(width=700)
+            )
+            st.altair_chart(chart, use_container_width=False)
+        else:
+            st.bar_chart(metrics.set_index("Short Title")["Profit"])
     except Exception:
         pass
 
