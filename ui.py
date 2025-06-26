@@ -2,12 +2,28 @@ import argparse
 import os
 import sys
 import subprocess
-from typing import List, Tuple
+from typing import List, Tuple, Dict
 
 import streamlit as st
 import pandas as pd
 
 import fba_agent
+
+FRIENDLY_NAMES: Dict[str, str] = {
+    "product_discovery": "Product Discovery",
+    "market_analysis": "Market Overview",
+    "review_analysis": "Customer Feedback",
+    "profitability_estimation": "Profit Estimation",
+    "demand_forecast": "Demand Forecast",
+    "supplier_selection": "Supplier Selection",
+    "supplier_contact_generator": "Supplier Messaging",
+    "pricing_simulator": "Price Simulator",
+    "inventory_management": "Inventory Planner",
+    "order_placement_agent": "Order Placement",
+    "negotiation_agent": "Negotiation Assistant",
+    "email_manager": "Email Management",
+    "reset_pipeline": "Reset Pipeline",
+}
 
 
 STEPS: List[Tuple[str, List[str]]] = [
@@ -95,7 +111,7 @@ def show_messages(dir_path: str) -> None:
 def summary_screen() -> None:
     sel_path = fba_agent.OUTPUTS["supplier_selection"]
     if not os.path.exists(sel_path):
-        st.info("Run supplier_selection to generate summary data.")
+        st.info("Run Supplier Selection to generate summary data.")
         return
     try:
         df = pd.read_csv(sel_path)
@@ -131,9 +147,10 @@ def pipeline_ui(auto: bool = False) -> None:
             run_step_ui(name, cmd)
 
     for name, cmd in STEPS:
+        friendly = FRIENDLY_NAMES.get(name, name)
         status = st.session_state.statuses[name]
-        with st.expander(f"{name} - {status}", expanded=False):
-            if st.button(f"Run {name}", key=f"btn_{name}"):
+        with st.expander(f"{friendly} - {status}", expanded=False):
+            if st.button(f"Run {friendly}", key=f"btn_{name}"):
                 if "{BUDGET}" in " ".join(cmd):
                     cmd = [c.replace("{BUDGET}", str(budget)) for c in cmd]
                 run_step_ui(name, cmd)
@@ -155,16 +172,17 @@ def pipeline_ui(auto: bool = False) -> None:
 
 
 def run_step_ui(name: str, cmd: List[str]) -> None:
+    friendly = FRIENDLY_NAMES.get(name, name)
     st.session_state.statuses[name] = "running"
-    with st.status(f"Running {name}...", expanded=True) as stat:
+    with st.status(f"Running {friendly}...", expanded=True) as stat:
         ok, out = run_script(cmd)
         st.session_state.logs[name] = out
         if ok:
             st.session_state.statuses[name] = "completed"
-            stat.update(label=f"{name} completed", state="complete")
+            stat.update(label=f"{friendly} completed", state="complete")
         else:
             st.session_state.statuses[name] = "failed"
-            stat.update(label=f"{name} failed", state="error")
+            stat.update(label=f"{friendly} failed", state="error")
 
 
 def run_headless(auto: bool = False) -> None:
