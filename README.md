@@ -21,15 +21,13 @@ This repository contains a simple script to discover potential Amazon FBA produc
    ```
 
 ## Usage
-Run the discovery script and enter your total startup budget when prompted.
-The script reserves part of that budget for tools and subscriptions (the amount is controlled by the `FIXED_COST` constant in `product_discovery.py`) and uses the rest for product research. The discovery step queries Amazon directly using SerpAPI's Amazon engine:
-
+Launch the entire FBA pipeline through the Streamlit interface:
 
 ```bash
-python product_discovery.py [--debug]
+streamlit run ui.py
 ```
 
-The script searches several product categories, estimates profitability, and saves the top 20 opportunities in `data/product_results.csv`. Use the optional `--debug` flag to print raw SerpAPI results for troubleshooting.
+This single command exposes buttons to run each step and view the generated CSV results. The following sections describe the individual scripts if you prefer running them manually.
 
 ## Market Analysis
 To analyze the market potential of existing Amazon products by ASIN, run the
