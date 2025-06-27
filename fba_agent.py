@@ -89,6 +89,11 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="run validation only and exit",
     )
+    parser.add_argument(
+        "--plan",
+        action="store_true",
+        help="show the planned steps without executing",
+    )
     return parser.parse_args()
 
 
@@ -222,7 +227,10 @@ def run_step(args: List[str], step: str, input_data: str | None = None, *, auto:
         subprocess.run([sys.executable] + args, check=True, text=True, input=input_data)
     except subprocess.CalledProcessError as exc:
         duration = time.time() - start
-        print(f"{Fore.RED}✗ {step} failed: {exc}{Style.RESET_ALL}")
+        print(
+            f"{Fore.RED}✗ {step} failed: {exc}. "
+            f"Check API keys and input files before retrying.{Style.RESET_ALL}"
+        )
         log(f"RESULT {step} failed {duration:.1f}s {exc}")
         if auto:
             return "failed", duration
@@ -230,6 +238,7 @@ def run_step(args: List[str], step: str, input_data: str | None = None, *, auto:
             choice = input("Retry (r), skip (s) or abort (a)? [s]: ").strip().lower()
             if choice in {"r", "s", "a", ""}:
                 break
+        log(f"CHOICE {step} {choice or 's'}")
         if choice == "r":
             return run_step(args, step, input_data, auto=auto)
         if choice == "a":
@@ -274,6 +283,116 @@ def ensure_mock_data(services: Dict[str, bool]) -> None:
         run_step(["prepare_mock_data.py"], "prepare_mock_data")
 
 
+def define_steps(budget: float, services: Dict[str, bool], negotiation_exists: bool, email_ok: bool, args: argparse.Namespace) -> List[Tuple[str, List[str], str | None, List[str], bool]]:
+    """Return pipeline step definitions."""
+
+    return [
+        (
+            "product_discovery",
+            ["product_discovery.py", "--budget", str(budget)],
+            None,
+            [OUTPUTS["product_discovery"]],
+            services["SerpAPI"],
+        ),
+        (
+            "market_analysis",
+            [
+                "market_analysis.py",
+                "--csv",
+                OUTPUTS["product_discovery"]
+                if services["SerpAPI"]
+                else os.path.join(DATA_DIR, "mock_market_data.csv"),
+            ],
+            None,
+            [OUTPUTS["market_analysis"]],
+            services["SerpAPI"] or services["Keepa"],
+        ),
+        (
+            "review_analysis",
+            ["review_analysis.py", "--csv", OUTPUTS["market_analysis"]],
+            None,
+            [OUTPUTS["review_analysis"]],
+            True,
+        ),
+        (
+            "profitability_estimation",
+            ["profitability_estimation.py"],
+            None,
+            [OUTPUTS["profitability_estimation"]],
+            True,
+        ),
+        (
+            "demand_forecast",
+            ["demand_forecast.py"],
+            None,
+            [OUTPUTS["demand_forecast"]],
+            True,
+        ),
+        (
+            "supplier_selection",
+            ["supplier_selection.py", "--budget", str(budget)],
+            None,
+            [OUTPUTS["supplier_selection"]],
+            True,
+        ),
+        (
+            "supplier_contact_generator",
+            ["supplier_contact_generator.py"],
+            None,
+            [OUTPUTS["supplier_contact_generator"]],
+            services["OpenAI"] and services[OPENAI_MODEL],
+        ),
+        (
+            "pricing_simulator",
+            ["pricing_simulator.py"] + (["--auto"] if args.auto else []),
+            None,
+            [OUTPUTS["pricing_simulator"]],
+            services["OpenAI"] and services[OPENAI_MODEL],
+        ),
+        (
+            "inventory_management",
+            ["inventory_management.py"],
+            None,
+            [OUTPUTS["inventory_management"]],
+            True,
+        ),
+        (
+            "negotiation_agent",
+            ["negotiation_agent.py"],
+            None,
+            [OUTPUTS["negotiation_agent"]],
+            negotiation_exists and services["OpenAI"] and services[OPENAI_MODEL] and email_ok,
+        ),
+        (
+            "email_manager",
+            ["email_manager.py"],
+            None,
+            [OUTPUTS["email_manager"]],
+            email_ok,
+        ),
+        (
+            "order_placement_agent",
+            ["order_placement_agent.py"],
+            None,
+            [OUTPUTS["order_placement_agent"]],
+            True,
+        ),
+    ]
+
+
+def validate_inputs(steps: List[Tuple[str, List[str], str | None, List[str], bool]]) -> None:
+    """Warn about missing inputs for enabled steps."""
+
+    for name, _, __, ___, cond in steps:
+        if not cond:
+            continue
+        reqs = STEP_INPUTS.get(name)
+        if reqs and not all(_file_has_rows(p) for p in reqs):
+            print(
+                f"{Fore.YELLOW}! {name} may fail because required inputs are missing or empty{Style.RESET_ALL}"
+            )
+
+
 def ask_reuse(step: str, paths: List[str], *, auto: bool = False, force: bool = False) -> bool:
     """Return ``True`` if existing outputs should be reused."""
 
@@ -286,6 +405,7 @@ def ask_reuse(step: str, paths: List[str], *, auto: bool = False, force: bool = 
     if auto:
         return False
     choice = input(f"Existing results for {step} found. Reuse them? [y/N]: ").strip().lower()
+    log(f"CHOICE reuse_{step} {choice or 'n'}")
     if choice == "y":
         print(f"{Fore.YELLOW}! Reusing cached results for {step}{Style.RESET_ALL}")
         log(f"RESULT {step} reused")
@@ -400,7 +520,7 @@ def main() -> None:
     email_ok = check_email_connection()
     if not email_ok:
         print(
-            f"{Fore.YELLOW}! Email modules disabled. Set EMAIL_ADDRESS and EMAIL_PASSWORD in .env to enable{Style.RESET_ALL}"
+            f"{Fore.YELLOW}! Email modules disabled. Set EMAIL_ADDRESS and EMAIL_PASSWORD in a .env file to enable{Style.RESET_ALL}"
         )
     print_service_status(services)
     ensure_mock_data(services)
@@ -414,63 +534,18 @@ def main() -> None:
                 break
             except ValueError:
                 print("Please enter a valid number.")
+    log(f"BUDGET {budget}")
 
-    steps = [
-        ("product_discovery", ["product_discovery.py"], f"{budget}\n", [OUTPUTS["product_discovery"]], services["SerpAPI"]),
-        (
-            "market_analysis",
-            ["market_analysis.py", "--csv", OUTPUTS["product_discovery"] if services["SerpAPI"] else os.path.join(DATA_DIR, "mock_market_data.csv")],
-            None,
-            [OUTPUTS["market_analysis"]],
-            services["SerpAPI"] or services["Keepa"],
-        ),
-        (
-            "review_analysis",
-            ["review_analysis.py", "--csv", OUTPUTS["market_analysis"]],
-            None,
-            [OUTPUTS["review_analysis"]],
-            True,
-        ),
-        ("profitability_estimation", ["profitability_estimation.py"], None, [OUTPUTS["profitability_estimation"]], True),
-        ("demand_forecast", ["demand_forecast.py"], None, [OUTPUTS["demand_forecast"]], True),
-        (
-            "supplier_selection",
-            ["supplier_selection.py", "--budget", str(budget)],
-            None,
-            [OUTPUTS["supplier_selection"]],
-            True,
-        ),
-        ("supplier_contact_generator", ["supplier_contact_generator.py"], None, [OUTPUTS["supplier_contact_generator"]], services["OpenAI"] and services[OPENAI_MODEL]),
-        (
-            "pricing_simulator",
-            ["pricing_simulator.py"] + (["--auto"] if args.auto else []),
-            None,
-            [OUTPUTS["pricing_simulator"]],
-            services["OpenAI"] and services[OPENAI_MODEL],
-        ),
-        ("inventory_management", ["inventory_management.py"], None, [OUTPUTS["inventory_management"]], True),
-        (
-            "negotiation_agent",
-            ["negotiation_agent.py"],
-            None,
-            [OUTPUTS["negotiation_agent"]],
-            negotiation_exists and services["OpenAI"] and services[OPENAI_MODEL] and email_ok,
-        ),
-        (
-            "email_manager",
-            ["email_manager.py"],
-            None,
-            [OUTPUTS["email_manager"]],
-            email_ok,
-        ),
-        (
-            "order_placement_agent",
-            ["order_placement_agent.py"],
-            None,
-            [OUTPUTS["order_placement_agent"]],
-            True,
-        ),
-    ]
+    steps = define_steps(budget, services, negotiation_exists, email_ok, args)
+
+    if args.plan:
+        print("\nPlanned steps:")
+        for name, _, __, ___, cond in steps:
+            note = " (skipped: missing services)" if not cond else ""
+            print(f" - {name}{note}")
+        validate_inputs(steps)
+        log("PLAN END")
+        return
 
     step_names = [s[0] for s in steps]
     statuses: Dict[str, str] = {name: "pending" for name in step_names}
@@ -490,6 +565,8 @@ def main() -> None:
                 statuses[name] = "reused"
                 last_done = i
         start_index = max(start_index, last_done + 1)
+
+    validate_inputs(steps)
 
     pipeline_start = time.time()
 
