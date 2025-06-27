@@ -36,13 +36,22 @@ MODULES: List[Tuple[str, str]] = [
 ]
 
 
-def run_module(script_name: str) -> Tuple[str, str, int]:
+def run_module(script_name: str, budget: float = 0.0) -> Tuple[str, str, int]:
     """Run a module with ``--auto`` and capture the output."""
+    cmd = [sys.executable, script_name, "--auto"]
+    inp = None
+    if script_name == "product_discovery.py":
+        # This script expects the budget from stdin.
+        # Based on fba_agent.py, it doesn't use the --auto flag.
+        cmd = [sys.executable, script_name]
+        inp = f"{budget}\n"
+
     result = subprocess.run(
-        ["python", script_name, "--auto"],
+        cmd,
         capture_output=True,
         text=True,
         cwd=ROOT_DIR,
+        input=inp,
     )
     return result.stdout, result.stderr, result.returncode
 
@@ -151,6 +160,14 @@ def pipeline_ui() -> None:
     if "validation_ok" not in st.session_state:
         st.session_state.validation_ok = True
 
+    st.sidebar.title("Configuration")
+    budget = st.sidebar.number_input(
+        "Startup Budget (USD)", min_value=100.0, value=3000.0, step=100.0
+    )
+    if "budget" not in st.session_state:
+        st.session_state.budget = 3000.0
+    st.session_state.budget = budget
+
     if st.button("🧪 Run Tests"):
         with st.spinner("Running tests..."):
             out, code = run_test_all()
@@ -182,12 +199,12 @@ def pipeline_ui() -> None:
 
     if st.button("Run All", disabled=disabled):
         for label, script in MODULES:
-            run_step_ui(label, script)
+            run_step_ui(label, script, st.session_state.budget)
 
     for label, script in MODULES:
         with st.expander(label, expanded=False):
             if st.button(label, key=f"btn_{script}", disabled=disabled):
-                run_step_ui(label, script)
+                run_step_ui(label, script, st.session_state.budget)
             if st.session_state.logs[label]:
                 st.text_area("Log", st.session_state.logs[label], height=150)
 
@@ -205,10 +222,10 @@ def pipeline_ui() -> None:
     summary_screen()
 
 
-def run_step_ui(label: str, script: str) -> None:
+def run_step_ui(label: str, script: str, budget: float) -> None:
     """Execute a module and display the results in the UI."""
     with st.spinner(f"Running {label}..."):
-        stdout, stderr, returncode = run_module(script)
+        stdout, stderr, returncode = run_module(script, budget)
     st.session_state.logs[label] = stdout if returncode == 0 else stderr
     if returncode == 0:
         st.success(f"✅ {label} completed successfully")
