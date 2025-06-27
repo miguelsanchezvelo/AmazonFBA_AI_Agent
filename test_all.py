@@ -1,10 +1,9 @@
 import argparse
-import importlib.util
 import logging
 import os
 import subprocess
 import sys
-from typing import List, Tuple, Optional
+from typing import List, Tuple
 
 SCRIPTS = [
     "product_discovery.py",
@@ -23,43 +22,33 @@ SCRIPTS = [
 LOG_FILE = "test_report.log"
 
 
-def supports_help(path: str) -> bool:
-    """Return True if the script likely supports --help."""
-    try:
-        with open(path, "r", encoding="utf-8") as f:
-            text = f.read()
-    except Exception:
-        return False
-    return "argparse" in text or "ArgumentParser" in text
-
-
 def run_command(cmd: List[str]) -> Tuple[bool, str]:
-    """Run a command and return (success, output)."""
+    """Run ``cmd`` and return ``(success, output)``."""
     try:
         res = subprocess.run(
             cmd,
             capture_output=True,
             text=True,
-            timeout=20,
+            timeout=30,
         )
         out = res.stdout + res.stderr
         return res.returncode == 0, out
-    except Exception as exc:
+    except Exception as exc:  # pragma: no cover - unexpected failure
         return False, str(exc)
 
 
-def check_import(path: str) -> Tuple[bool, str]:
-    """Attempt to import a module from the given path."""
-    name = os.path.splitext(os.path.basename(path))[0]
-    spec = importlib.util.spec_from_file_location(name, path)
-    if spec is None or spec.loader is None:
-        return False, "spec creation failed"
-    module = importlib.util.module_from_spec(spec)
-    try:
-        spec.loader.exec_module(module)  # type: ignore[attr-defined]
-        return True, ""
-    except Exception as exc:  # pragma: no cover - import error
-        return False, str(exc)
+def check_help(script: str) -> Tuple[bool, str]:
+    """Return ``True`` if the script's help lists the required options."""
+    ok, out = run_command([sys.executable, script, "--help"])
+    expected = ["--auto", "--debug", "--verbose", "--max-products"]
+    if ok:
+        ok = all(opt in out for opt in expected)
+    return ok, out
+
+
+def run_auto(script: str) -> Tuple[bool, str]:
+    """Run script with ``--auto`` and return success status and output."""
+    return run_command([sys.executable, script, "--auto"])
 
 
 def main() -> None:
@@ -78,48 +67,35 @@ def main() -> None:
             msg = "File not found"
             print(f"  {script}: ❌ {msg}")
             logging.error(msg)
-            results.append((script, "missing", "-", "-"))
+            results.append((script, False, False))
             continue
 
-        # Compile
-        ok_compile, out_compile = run_command([sys.executable, "-m", "py_compile", script])
-        logging.info("compile output:\n%s", out_compile)
-
-        # Import
-        ok_import, out_import = check_import(script)
-        logging.info("import output:\n%s", out_import)
-
-        # Help
-        if supports_help(script):
-            ok_help, out_help = run_command([sys.executable, script, "--help"])
-            logging.info("help output:\n%s", out_help)
-        else:
-            ok_help = None
-            out_help = ""  # pragma: no cover - help not supported
+        help_ok, help_out = check_help(script)
+        auto_ok, auto_out = run_auto(script)
 
         if args.verbose:
-            if out_compile.strip():
-                print(out_compile.strip())
-            if out_import.strip():
-                print(out_import.strip())
-            if ok_help is not None and out_help.strip():
-                print(out_help.strip())
+            if help_out.strip():
+                print(help_out.strip())
+            if auto_out.strip():
+                print(auto_out.strip())
 
-        compile_status = "OK" if ok_compile else "Error"
-        import_status = "OK" if ok_import else "Error"
-        help_status = "N/A" if ok_help is None else ("OK" if ok_help else "Error")
-
-        results.append((script, compile_status, import_status, help_status))
-        overall = ok_compile and ok_import and (ok_help if ok_help is not None else True)
-        print("  ✅ OK" if overall else "  ❌ Error")
+        results.append((script, help_ok, auto_ok))
+        if help_ok and auto_ok:
+            print(f"  {script}: ✅")
+        elif help_ok:
+            print(f"  {script}: ⚠️ auto mode failed")
+        else:
+            print(f"  {script}: ❌ help/auto failure")
 
     # Summary
     print("\nSummary:\n")
-    header = f"{'Script':30} {'Compile':>8} {'Import':>8} {'Help':>8}"
+    header = f"{'Script':30} {'Help':>6} {'Auto':>6}"
     print(header)
     print("-" * len(header))
-    for row in results:
-        print(f"{row[0]:30} {row[1]:>8} {row[2]:>8} {row[3]:>8}")
+    for script, help_ok, auto_ok in results:
+        help_status = "OK" if help_ok else "Fail"
+        auto_status = "OK" if auto_ok else "Fail"
+        print(f"{script:30} {help_status:>6} {auto_status:>6}")
 
     test_reset_pipeline()
 

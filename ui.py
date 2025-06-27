@@ -42,7 +42,7 @@ def run_module(script_name: str) -> Tuple[str, str, int]:
         ["python", script_name, "--auto"],
         capture_output=True,
         text=True,
-        cwd=os.getcwd(),
+        cwd=ROOT_DIR,
     )
     return result.stdout, result.stderr, result.returncode
 
@@ -59,6 +59,28 @@ def commit_and_push_changes(
         subprocess.run(["git", "push"], cwd=os.getcwd(), check=False)
     except Exception:
         pass
+
+
+def run_test_all() -> Tuple[str, int]:
+    """Execute ``test_all.py`` and return output and exit code."""
+    res = subprocess.run(
+        [sys.executable, "test_all.py"],
+        capture_output=True,
+        text=True,
+        cwd=ROOT_DIR,
+    )
+    return res.stdout + res.stderr, res.returncode
+
+
+def run_validate_all() -> Tuple[str, int]:
+    """Execute ``validate_all.py`` and return output and exit code."""
+    res = subprocess.run(
+        [sys.executable, "validate_all.py"],
+        capture_output=True,
+        text=True,
+        cwd=ROOT_DIR,
+    )
+    return res.stdout + res.stderr, res.returncode
 
 
 def display_csv(path: str, title: str) -> None:
@@ -124,14 +146,47 @@ def pipeline_ui() -> None:
     st.title("Amazon FBA AI Agent")
     if "logs" not in st.session_state:
         st.session_state.logs = {label: "" for label, _ in MODULES}
+    if "tests_ok" not in st.session_state:
+        st.session_state.tests_ok = True
+    if "validation_ok" not in st.session_state:
+        st.session_state.validation_ok = True
 
-    if st.button("Run All"):
+    if st.button("🧪 Run Tests"):
+        with st.spinner("Running tests..."):
+            out, code = run_test_all()
+        with st.expander("Test Output"):
+            st.code(out)
+        st.session_state.tests_ok = code == 0
+        if st.session_state.tests_ok:
+            st.success("Tests passed")
+        else:
+            st.error("Tests failed")
+
+    if st.button("✅ Validate Pipeline"):
+        with st.spinner("Validating pipeline..."):
+            vout, vcode = run_validate_all()
+        with st.expander("Validation Output"):
+            st.code(vout)
+        ok = vcode == 0 and "Missing" not in vout and "Error" not in vout
+        st.session_state.validation_ok = ok
+        if ok:
+            st.success("Validation passed")
+        else:
+            st.error("Validation reported issues")
+            if "Missing" in vout or "file not found" in vout:
+                st.error("Critical files are missing!")
+
+    st.divider()
+
+    disabled = not (st.session_state.tests_ok and st.session_state.validation_ok)
+
+    if st.button("Run All", disabled=disabled):
         for label, script in MODULES:
             run_step_ui(label, script)
 
     for label, script in MODULES:
         with st.expander(label, expanded=False):
-            if st.button(label, key=f"btn_{script}"):
+            if st.button(label, key=f"btn_{script}", disabled=disabled):
                 run_step_ui(label, script)
             if st.session_state.logs[label]:
                 st.text_area("Log", st.session_state.logs[label], height=150)
