@@ -98,6 +98,17 @@ FILES = {
     },
 }
 
+# mapping of CLI scripts to the CSV files they should generate in ``--auto`` mode
+SCRIPT_OUTPUTS = {
+    "product_discovery.py": "product_results.csv",
+    "market_analysis.py": "market_analysis_results.csv",
+    "profitability_estimation.py": "profitability_estimation_results.csv",
+    "demand_forecast.py": "demand_forecast_results.csv",
+    "supplier_selection.py": "supplier_selection_results.csv",
+    "pricing_simulator.py": "pricing_suggestions.csv",
+    "inventory_management.py": "inventory_management_results.csv",
+}
+
 
 class Result:
     def __init__(self, module: str, status: str, message: str = ""):
@@ -107,6 +118,65 @@ class Result:
 
     def as_tuple(self) -> Tuple[str, str, str]:
         return self.module, self.status, self.message
+
+
+def run_command(cmd: List[str]) -> Tuple[bool, str]:
+    """Run ``cmd`` and return ``(success, output)``."""
+    try:
+        res = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        out = res.stdout + res.stderr
+        return res.returncode == 0, out
+    except Exception as exc:  # pragma: no cover - unexpected failure
+        return False, str(exc)
+
+
+def check_script(script: str, output_file: str) -> Result:
+    """Run ``script`` with ``--help`` and ``--auto`` and verify output file."""
+    help_ok, help_out = run_command([sys.executable, script, "--help"])
+    required = ["--auto", "--debug", "--verbose", "--max-products"]
+    if help_ok:
+        help_ok = all(opt in help_out for opt in required)
+
+    auto_ok, auto_out = run_command([sys.executable, script, "--auto"])
+
+    csv_path = os.path.join(DATA_DIR, output_file)
+    csv_ok = os.path.exists(csv_path) and os.path.getsize(csv_path) > 0
+
+    status = "OK" if help_ok and auto_ok and csv_ok else ("Warning" if help_ok and auto_ok else "Error")
+    notes = []
+    if not csv_ok:
+        notes.append("CSV missing")
+    if not help_ok:
+        notes.append("help")
+    if not auto_ok:
+        notes.append("auto")
+    msg = ", ".join(notes)
+    return Result(script, status, msg)
+
+
+def print_script_results(results: List[Result]) -> None:
+    header = f"{'Script':30} {'Status':>8}  Notes"
+    print(header)
+    print("-" * len(header))
+    for r in results:
+        note = r.message if r.message else "-"
+        print(f"{r.module:30} {r.status:>8}  {note}")
+
+
+def validate_scripts() -> List[Result]:
+    """Run each CLI script in auto mode and verify its output."""
+    results: List[Result] = []
+    for script, fname in SCRIPT_OUTPUTS.items():
+        res = check_script(script, fname)
+        results.append(res)
+    print("Validated scripts:\n")
+    print_script_results(results)
+    return results
 
 
 def load_csv(path: str) -> Optional[pd.DataFrame]:
@@ -343,6 +413,7 @@ def print_summary(results: List[Result]) -> None:
 
 def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
+    script_results = validate_scripts()
     all_data: Dict[str, pd.DataFrame] = {}
     results: List[Result] = []
     for fname in FILES:
@@ -352,6 +423,9 @@ def main() -> None:
         results.append(res)
 
     results.extend(cross_check(all_data))
+
+    if script_results:
+        results = script_results + results
 
     print_summary(results)
     if any(r.status != "OK" for r in results):
