@@ -4,72 +4,47 @@ import sys
 import subprocess
 from typing import List, Tuple, Dict
 
+# Absolute path to the repository root so modules are executed
+# consistently regardless of the working directory.
+ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
+
 import streamlit as st
 import pandas as pd
 
 import fba_agent
 
 FRIENDLY_NAMES: Dict[str, str] = {
-    "product_discovery": "Product Discovery",
-    "market_analysis": "Market Overview",
-    "review_analysis": "Customer Feedback",
-    "profitability_estimation": "Profit Estimation",
-    "demand_forecast": "Demand Forecast",
-    "supplier_selection": "Supplier Selection",
-    "supplier_contact_generator": "Supplier Messaging",
-    "pricing_simulator": "Price Simulator",
-    "inventory_management": "Inventory Planner",
-    "order_placement_agent": "Order Placement",
-    "negotiation_agent": "Negotiation Assistant",
-    "email_manager": "Email Management",
-    "reset_pipeline": "Reset Pipeline",
+    "product_discovery.py": "Product Discovery",
+    "market_analysis.py": "Market Analysis",
+    "profitability_estimation.py": "Profitability Estimation",
+    "demand_forecast.py": "Demand Forecast",
+    "supplier_selection.py": "Supplier Selection",
+    "supplier_contact_generator.py": "Supplier Contact Generator",
+    "pricing_simulator.py": "Pricing Simulator",
+    "inventory_management.py": "Inventory Management",
 }
 
-
-STEPS: List[Tuple[str, List[str]]] = [
-    ("product_discovery", ["product_discovery.py"]),
-    (
-        "market_analysis",
-        ["market_analysis.py", "--csv", fba_agent.OUTPUTS["product_discovery"]],
-    ),
-    ("review_analysis", ["review_analysis.py", "--csv", fba_agent.OUTPUTS["market_analysis"]]),
-    ("profitability_estimation", ["profitability_estimation.py"]),
-    ("demand_forecast", ["demand_forecast.py"]),
-    ("supplier_selection", ["supplier_selection.py", "--budget", "{BUDGET}"]),
-    ("supplier_contact_generator", ["supplier_contact_generator.py"]),
-    ("pricing_simulator", ["pricing_simulator.py", "--auto"]),
-    ("inventory_management", ["inventory_management.py"]),
-    ("negotiation_agent", ["negotiation_agent.py"]),
-    ("email_manager", ["email_manager.py"]),
-    ("order_placement_agent", ["order_placement_agent.py"]),
+MODULES: List[Tuple[str, str]] = [
+    ("Product Discovery", "product_discovery.py"),
+    ("Market Analysis", "market_analysis.py"),
+    ("Profitability Estimation", "profitability_estimation.py"),
+    ("Demand Forecast", "demand_forecast.py"),
+    ("Supplier Selection", "supplier_selection.py"),
+    ("Supplier Contact Generator", "supplier_contact_generator.py"),
+    ("Pricing Simulator", "pricing_simulator.py"),
+    ("Inventory Management", "inventory_management.py"),
 ]
 
 
-def run_script(args: List[str], input_data: str | None = None) -> Tuple[bool, str]:
-    """Run a script and return ``(success, output)`` with real-time logging."""
-    try:
-        proc = subprocess.Popen(
-            [sys.executable] + args,
-            stdin=subprocess.PIPE if input_data else None,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-            bufsize=1,
-        )
-        if input_data and proc.stdin:
-            proc.stdin.write(input_data)
-            proc.stdin.close()
-        lines: List[str] = []
-        placeholder = st.empty()
-        assert proc.stdout  # for type checkers
-        for line in proc.stdout:
-            lines.append(line)
-            placeholder.text("".join(lines))
-        proc.wait()
-        out = "".join(lines)
-        return proc.returncode == 0, out
-    except Exception as exc:  # pragma: no cover - execution error
-        return False, str(exc)
+def run_module(script_name: str) -> Tuple[str, str, int]:
+    """Run a module with ``--auto`` and capture the output."""
+    result = subprocess.run(
+        [sys.executable, script_name, "--auto"],
+        capture_output=True,
+        text=True,
+        cwd=ROOT_DIR,
+    )
+    return result.stdout, result.stderr, result.returncode
 
 
 def display_csv(path: str, title: str) -> None:
@@ -131,31 +106,21 @@ def summary_screen() -> None:
     st.dataframe(df)
 
 
-def pipeline_ui(auto: bool = False) -> None:
+def pipeline_ui() -> None:
     st.title("Amazon FBA AI Agent")
-    budget = st.number_input(
-        "Startup budget (USD)", min_value=0.0, value=float(fba_agent.DEFAULT_BUDGET)
-    )
-    if "statuses" not in st.session_state:
-        st.session_state.statuses = {name: "pending" for name, _ in STEPS}
-        st.session_state.logs = {name: "" for name, _ in STEPS}
+    if "logs" not in st.session_state:
+        st.session_state.logs = {label: "" for label, _ in MODULES}
 
     if st.button("Run All"):
-        for name, cmd in STEPS:
-            if "{BUDGET}" in " ".join(cmd):
-                cmd = [c.replace("{BUDGET}", str(budget)) for c in cmd]
-            run_step_ui(name, cmd)
+        for label, script in MODULES:
+            run_step_ui(label, script)
 
-    for name, cmd in STEPS:
-        friendly = FRIENDLY_NAMES.get(name, name)
-        status = st.session_state.statuses[name]
-        with st.expander(f"{friendly} - {status}", expanded=False):
-            if st.button(f"Run {friendly}", key=f"btn_{name}"):
-                if "{BUDGET}" in " ".join(cmd):
-                    cmd = [c.replace("{BUDGET}", str(budget)) for c in cmd]
-                run_step_ui(name, cmd)
-            if st.session_state.logs[name]:
-                st.text_area("Log", st.session_state.logs[name], height=150)
+    for label, script in MODULES:
+        with st.expander(label, expanded=False):
+            if st.button(f"Run {label}", key=f"btn_{script}"):
+                run_step_ui(label, script)
+            if st.session_state.logs[label]:
+                st.text_area("Log", st.session_state.logs[label], height=150)
 
     display_csv(fba_agent.OUTPUTS["product_discovery"], "Product Results")
     display_csv(fba_agent.OUTPUTS["market_analysis"], "Market Analysis")
@@ -171,18 +136,17 @@ def pipeline_ui(auto: bool = False) -> None:
     summary_screen()
 
 
-def run_step_ui(name: str, cmd: List[str]) -> None:
-    friendly = FRIENDLY_NAMES.get(name, name)
-    st.session_state.statuses[name] = "running"
-    with st.status(f"Running {friendly}...", expanded=True) as stat:
-        ok, out = run_script(cmd)
-        st.session_state.logs[name] = out
-        if ok:
-            st.session_state.statuses[name] = "completed"
-            stat.update(label=f"{friendly} completed", state="complete")
-        else:
-            st.session_state.statuses[name] = "failed"
-            stat.update(label=f"{friendly} failed", state="error")
+def run_step_ui(label: str, script: str) -> None:
+    """Execute a module and display the results in the UI."""
+    with st.spinner(f"Running {label}..."):
+        stdout, stderr, returncode = run_module(script)
+    st.session_state.logs[label] = stdout if returncode == 0 else stderr
+    if returncode == 0:
+        st.success(f"✅ {label} completed successfully")
+    else:
+        st.error(f"❌ {label} failed")
+    with st.expander("Details"):
+        st.text(st.session_state.logs[label])
 
 
 def run_headless(auto: bool = False) -> None:
@@ -205,4 +169,4 @@ if __name__ == "__main__":
     if args.headless:
         run_headless(auto=args.auto)
     else:
-        pipeline_ui(auto=args.auto)
+        pipeline_ui()
