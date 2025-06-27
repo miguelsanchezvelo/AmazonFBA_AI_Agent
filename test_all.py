@@ -81,11 +81,11 @@ def main() -> None:
 
         results.append((script, help_ok, auto_ok))
         if help_ok and auto_ok:
-            print(f"  {script}: ✅")
+            print(f"  {script}: OK")
         elif help_ok:
-            print(f"  {script}: ⚠️ auto mode failed")
+            print(f"  {script}: Warn - auto mode failed")
         else:
-            print(f"  {script}: ❌ help/auto failure")
+            print(f"  {script}: Fail - help/auto failure")
 
     # Summary
     print("\nSummary:\n")

@@ -25,35 +25,55 @@ FRIENDLY_NAMES: Dict[str, str] = {
 }
 
 MODULES: List[Tuple[str, str]] = [
-    ("🔍 Run Product Discovery", "product_discovery.py"),
-    ("📊 Run Market Analysis", "market_analysis.py"),
-    ("💰 Run Profitability Estimation", "profitability_estimation.py"),
-    ("📈 Run Demand Forecast", "demand_forecast.py"),
-    ("🧮 Run Supplier Selection", "supplier_selection.py"),
-    ("📤 Generate Supplier Emails", "supplier_contact_generator.py"),
-    ("🧾 Simulate Pricing Strategy", "pricing_simulator.py"),
-    ("📦 Manage Inventory", "inventory_management.py"),
+    ("Run Product Discovery", "product_discovery.py"),
+    ("Run Market Analysis", "market_analysis.py"),
+    ("Run Profitability Estimation", "profitability_estimation.py"),
+    ("Run Demand Forecast", "demand_forecast.py"),
+    ("Run Supplier Selection", "supplier_selection.py"),
+    ("Generate Supplier Emails", "supplier_contact_generator.py"),
+    ("Simulate Pricing Strategy", "pricing_simulator.py"),
+    ("Manage Inventory", "inventory_management.py"),
 ]
 
 
-def run_module(script_name: str, budget: float = 0.0) -> Tuple[str, str, int]:
-    """Run a module with ``--auto`` and capture the output."""
+def run_module(script_name: str, budget: float = 0.0) -> Tuple[str, str, int, str]:
+    """Run a module and return (stdout, stderr, exit_code, detailed_log)."""
     cmd = [sys.executable, script_name, "--auto"]
     inp = None
     if script_name == "product_discovery.py":
-        # This script expects the budget from stdin.
-        # Based on fba_agent.py, it doesn't use the --auto flag.
         cmd = [sys.executable, script_name]
         inp = f"{budget}\n"
 
-    result = subprocess.run(
-        cmd,
-        capture_output=True,
-        text=True,
-        cwd=ROOT_DIR,
-        input=inp,
-    )
-    return result.stdout, result.stderr, result.returncode
+    log_lines = []
+    log_lines.append(f"🚀 Running command: {' '.join(cmd)}")
+    log_lines.append("-" * 30)
+    try:
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            cwd=ROOT_DIR,
+            input=inp,
+        )
+        log_lines.append("📝 Stdout:")
+        log_lines.append(result.stdout.strip())
+        log_lines.append("📝 Stderr:")
+        log_lines.append(result.stderr.strip())
+        log_lines.append(f"Exit code: {result.returncode}")
+        if result.returncode != 0:
+            log_lines.append("-" * 30)
+            log_lines.append(f"❌ Step failed with exit code {result.returncode}.")
+            log_lines.append("Troubleshooting:")
+            log_lines.append(" - Check the output above for specific errors.")
+            log_lines.append(" - Ensure all required dependencies are installed (pip install -r requirements.txt).")
+            log_lines.append(f" - Try running the step manually in your terminal:")
+            log_lines.append(f"   cd {ROOT_DIR}")
+            log_lines.append(f"   {' '.join(cmd)}")
+        return result.stdout, result.stderr, result.returncode, "\n".join(log_lines)
+    except Exception as exc:
+        log_lines.append("-" * 30)
+        log_lines.append(f"💥 An exception occurred: {exc}")
+        return "", str(exc), 1, "\n".join(log_lines)
 
 
 def commit_and_push_changes(
@@ -70,26 +90,128 @@ def commit_and_push_changes(
         pass
 
 
+def file_has_content(path: str) -> bool:
+    """Return ``True`` if a file exists and has content (more than a header for CSVs)."""
+    if not os.path.exists(path):
+        return False
+    if os.path.isdir(path):
+        try:
+            return bool(os.listdir(path))
+        except OSError:
+            return False
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            return sum(1 for _ in f) > 1
+    except (IOError, UnicodeDecodeError):
+        return False
+
+
 def run_test_all() -> Tuple[str, int]:
-    """Execute ``test_all.py`` and return output and exit code."""
-    res = subprocess.run(
-        [sys.executable, "test_all.py"],
-        capture_output=True,
-        text=True,
-        cwd=ROOT_DIR,
-    )
-    return res.stdout + res.stderr, res.returncode
+    """Execute ``test_all.py`` and return a detailed log and exit code."""
+    script_path = os.path.join(ROOT_DIR, "test_all.py")
+    log_lines = []
+
+    if not os.path.exists(script_path):
+        log_lines.append(f"❌ Error: Test script not found at {script_path}")
+        log_lines.append(
+            "Troubleshooting: Ensure 'test_all.py' exists in the root directory."
+        )
+        return "\n".join(log_lines), 1
+
+    cmd = [sys.executable, script_path]
+    log_lines.append(f"🚀 Running command: {' '.join(cmd)}")
+    log_lines.append("-" * 30)
+
+    try:
+        res = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            cwd=ROOT_DIR,
+        )
+
+        output = res.stdout + res.stderr
+        log_lines.append("📝 Output:")
+        log_lines.append(output.strip())
+
+        if res.returncode != 0:
+            log_lines.append("-" * 30)
+            log_lines.append(f"❌ Test run failed with exit code {res.returncode}.")
+            log_lines.append("Troubleshooting:")
+            log_lines.append(" - Check the output above for specific errors.")
+            log_lines.append(
+                " - Ensure all required dependencies are installed (e.g., pip install -r requirements.txt)."
+            )
+            log_lines.append(
+                " - Run the tests from your terminal directly to see if the issue persists:"
+            )
+            log_lines.append(f"   cd {ROOT_DIR}")
+            log_lines.append(f"   {os.path.basename(sys.executable)} test_all.py")
+
+        return "\n".join(log_lines), res.returncode
+
+    except Exception as exc:
+        log_lines.append("-" * 30)
+        log_lines.append(
+            f"💥 An exception occurred while trying to run the tests: {exc}"
+        )
+        return "\n".join(log_lines), 1
 
 
 def run_validate_all() -> Tuple[str, int]:
-    """Execute ``validate_all.py`` and return output and exit code."""
-    res = subprocess.run(
-        [sys.executable, "validate_all.py"],
-        capture_output=True,
-        text=True,
-        cwd=ROOT_DIR,
-    )
-    return res.stdout + res.stderr, res.returncode
+    """Execute ``validate_all.py`` and return a detailed log and exit code."""
+    script_path = os.path.join(ROOT_DIR, "validate_all.py")
+    log_lines = []
+
+    if not os.path.exists(script_path):
+        log_lines.append(f"❌ Error: Validation script not found at {script_path}")
+        log_lines.append(
+            "Troubleshooting: Ensure 'validate_all.py' exists in the root directory."
+        )
+        return "\n".join(log_lines), 1
+
+    cmd = [sys.executable, script_path]
+    log_lines.append(f"🚀 Running command: {' '.join(cmd)}")
+    log_lines.append("-" * 30)
+
+    try:
+        res = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            cwd=ROOT_DIR,
+        )
+
+        output = res.stdout + res.stderr
+        log_lines.append("📝 Output:")
+        log_lines.append(output.strip())
+
+        if res.returncode != 0:
+            log_lines.append("-" * 30)
+            log_lines.append(
+                f"❌ Validation failed with exit code {res.returncode}."
+            )
+            log_lines.append("Troubleshooting:")
+            log_lines.append(
+                " - Look for 'Error' or 'Missing' messages in the output above."
+            )
+            log_lines.append(
+                " - Some validation checks depend on pipeline outputs. Ensure required steps have been run."
+            )
+            log_lines.append(
+                " - Run validation from your terminal directly to see if the issue persists:"
+            )
+            log_lines.append(f"   cd {ROOT_DIR}")
+            log_lines.append(f"   {os.path.basename(sys.executable)} validate_all.py")
+
+        return "\n".join(log_lines), res.returncode
+
+    except Exception as exc:
+        log_lines.append("-" * 30)
+        log_lines.append(
+            f"💥 An exception occurred while trying to run validation: {exc}"
+        )
+        return "\n".join(log_lines), 1
 
 
 def display_csv(path: str, title: str) -> None:
@@ -168,30 +290,27 @@ def pipeline_ui() -> None:
         st.session_state.budget = 3000.0
     st.session_state.budget = budget
 
-    if st.button("🧪 Run Tests"):
+    if st.button("Run Tests"):
         with st.spinner("Running tests..."):
             out, code = run_test_all()
-        with st.expander("Test Output"):
+        with st.expander("Test Output", expanded=code != 0):
             st.code(out)
         st.session_state.tests_ok = code == 0
         if st.session_state.tests_ok:
             st.success("Tests passed")
         else:
-            st.error("Tests failed")
+            st.error("Tests failed. Check output for details.")
 
-    if st.button("✅ Validate Pipeline"):
+    if st.button("Validate Pipeline"):
         with st.spinner("Validating pipeline..."):
             vout, vcode = run_validate_all()
-        with st.expander("Validation Output"):
+        with st.expander("Validation Output", expanded=vcode != 0):
             st.code(vout)
-        ok = vcode == 0 and "Missing" not in vout and "Error" not in vout
-        st.session_state.validation_ok = ok
-        if ok:
+        st.session_state.validation_ok = vcode == 0
+        if st.session_state.validation_ok:
             st.success("Validation passed")
         else:
-            st.error("Validation reported issues")
-            if "Missing" in vout or "file not found" in vout:
-                st.error("Critical files are missing!")
+            st.error("Validation reported issues. Check output for details.")
 
     st.divider()
 
@@ -199,11 +318,21 @@ def pipeline_ui() -> None:
 
     if st.button("Run All", disabled=disabled):
         for label, script in MODULES:
-            run_step_ui(label, script, st.session_state.budget)
+            step_name = os.path.splitext(script)[0]
+            required_inputs = fba_agent.STEP_INPUTS.get(step_name, [])
+            if all(file_has_content(p) for p in required_inputs):
+                run_step_ui(label, script, st.session_state.budget)
+            else:
+                st.toast(f"Skipping {label} - prerequisites not met.")
 
     for label, script in MODULES:
         with st.expander(label, expanded=False):
-            if st.button(label, key=f"btn_{script}", disabled=disabled):
+            step_name = os.path.splitext(script)[0]
+            required_inputs = fba_agent.STEP_INPUTS.get(step_name, [])
+            prereqs_met = all(file_has_content(p) for p in required_inputs)
+            is_step_disabled = disabled or not prereqs_met
+
+            if st.button(label, key=f"btn_{script}", disabled=is_step_disabled):
                 run_step_ui(label, script, st.session_state.budget)
             if st.session_state.logs[label]:
                 st.text_area("Log", st.session_state.logs[label], height=150)
@@ -225,15 +354,15 @@ def pipeline_ui() -> None:
 def run_step_ui(label: str, script: str, budget: float) -> None:
     """Execute a module and display the results in the UI."""
     with st.spinner(f"Running {label}..."):
-        stdout, stderr, returncode = run_module(script, budget)
+        stdout, stderr, returncode, log = run_module(script, budget)
     st.session_state.logs[label] = stdout if returncode == 0 else stderr
     if returncode == 0:
         st.success(f"✅ {label} completed successfully")
         commit_and_push_changes(f"Auto: updated results after {label}")
     else:
         st.error(f"❌ {label} failed")
-    with st.expander("Details"):
-        st.text(st.session_state.logs[label])
+    with st.expander("Step Log", expanded=returncode != 0):
+        st.code(log)
 
 
 def run_headless(auto: bool = False) -> None:
