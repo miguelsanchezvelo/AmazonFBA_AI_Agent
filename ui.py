@@ -40,10 +40,10 @@ def run_module(script_name: str, budget: float = 0.0) -> Tuple[str, str, int, st
     """Run a module and return (stdout, stderr, exit_code, detailed_log)."""
     cmd = [sys.executable, script_name, "--auto"]
     inp = None
+    env = os.environ.copy()
     if script_name == "product_discovery.py":
-        cmd = [sys.executable, script_name]
-        inp = f"{budget}\n"
-
+        cmd = [sys.executable, script_name, "--auto"]
+        env["FBA_BUDGET"] = str(budget)
     log_lines = []
     log_lines.append(f"🚀 Running command: {' '.join(cmd)}")
     log_lines.append("-" * 30)
@@ -54,6 +54,7 @@ def run_module(script_name: str, budget: float = 0.0) -> Tuple[str, str, int, st
             text=True,
             cwd=ROOT_DIR,
             input=inp,
+            env=env,
         )
         log_lines.append("📝 Stdout:")
         log_lines.append(result.stdout.strip())
@@ -273,6 +274,22 @@ def summary_screen() -> None:
     st.dataframe(df)
 
 
+def run_prepare_environment() -> str:
+    """Run pip install -r requirements.txt and return the output log."""
+    import subprocess
+    try:
+        res = subprocess.run(
+            [sys.executable, "-m", "pip", "install", "-r", "requirements.txt"],
+            capture_output=True,
+            text=True,
+            cwd=ROOT_DIR,
+        )
+        log = res.stdout + res.stderr
+        return log
+    except Exception as exc:
+        return f"Error running pip install: {exc}"
+
+
 def pipeline_ui() -> None:
     st.title("Amazon FBA AI Agent")
     if "logs" not in st.session_state:
@@ -311,6 +328,12 @@ def pipeline_ui() -> None:
             st.success("Validation passed")
         else:
             st.error("Validation reported issues. Check output for details.")
+
+    if st.button("Prepare Environment"):
+        with st.spinner("Installing dependencies..."):
+            pip_log = run_prepare_environment()
+        with st.expander("Environment Setup Log", expanded=True):
+            st.code(pip_log)
 
     st.divider()
 

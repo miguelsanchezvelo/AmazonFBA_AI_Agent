@@ -289,7 +289,7 @@ def print_report(products: List[Dict[str, object]]):
 def main() -> None:
     try:
         if args.auto:
-            budget = 1000.0
+            budget = float(os.getenv("FBA_BUDGET", 1000.0))
         else:
             budget = float(input("Enter your total startup budget in USD: "))
     except ValueError:
