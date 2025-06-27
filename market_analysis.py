@@ -24,6 +24,20 @@ except Exception:  # pragma: no cover - optional dependency
 
 load_dotenv()
 
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Analyze Amazon market data")
+    parser.add_argument('--auto', action='store_true', help='Run in auto mode with default values')
+    parser.add_argument('--debug', action='store_true', help='Enable debug output')
+    parser.add_argument('--verbose', action='store_true', help='Enable detailed console output')
+    parser.add_argument('--max-products', type=int, default=10, help='Maximum number of products to process (if applicable)')
+    parser.add_argument('--csv', help='CSV with ASINs (API mode) or mock data (manual mode)')
+    parser.add_argument('--no-fallback', action='store_true', help='disable API fallback searches')
+    return parser.parse_args()
+
+
+args = parse_args()
+
 LOG_FILE = "log.txt"
 ASIN_LOG = os.path.join("logs", "asin_mismatch.log")
 
@@ -423,13 +437,8 @@ def analyze(asins: List[str], use_serp: bool, use_keepa: bool, fallback: bool) -
     return results
 
 
-def main():
-    parser = argparse.ArgumentParser(description="Analyze Amazon market data")
-    parser.add_argument("--csv", help="CSV with ASINs (API mode) or mock data (manual mode)")
-    parser.add_argument("--no-fallback", action="store_true", help="disable API fallback searches")
-    args = parser.parse_args()
-
-    load_keys(prompt=False)
+def main() -> None:
+    load_keys(prompt=not args.auto)
     serp_available = bool(SERPAPI_KEY)
     keepa_available = bool(KEEPA_KEY)
 
@@ -469,10 +478,12 @@ def main():
     if args.csv:
         asins = load_asins_from_csv(args.csv)
     else:
-        asins = prompt_asins()
-        if not asins:
-            # load from discovery CSV if available
+        if args.auto:
             if os.path.exists(DISCOVERY_CSV):
+                asins = load_asins_from_csv(DISCOVERY_CSV)
+        else:
+            asins = prompt_asins()
+            if not asins and os.path.exists(DISCOVERY_CSV):
                 asins = load_asins_from_csv(DISCOVERY_CSV)
     if not asins:
         print("No ASINs provided")

@@ -3,6 +3,7 @@ import csv
 import os
 import time
 from typing import List, Dict, Optional, Set
+import argparse
 
 LOG_FILE = "log.txt"
 ASIN_LOG = os.path.join("logs", "asin_mismatch.log")
@@ -47,6 +48,20 @@ FALLBACK_ROW = {
     "est_monthly_sales": 300,
     "demand_level": "MEDIUM",
 }
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Estimate product demand from market analysis data")
+    parser.add_argument('--auto', action='store_true', help='Run in auto mode with default values')
+    parser.add_argument('--debug', action='store_true', help='Enable debug output')
+    parser.add_argument('--verbose', action='store_true', help='Enable detailed console output')
+    parser.add_argument('--max-products', type=int, default=10, help='Maximum number of products to process (if applicable)')
+    parser.add_argument('--input', default=INPUT_CSV, help='Path to market analysis CSV file')
+    parser.add_argument('--output', default=OUTPUT_CSV, help='Where to save demand forecast results')
+    return parser.parse_args()
+
+
+args = parse_args()
 
 
 def load_valid_asins() -> Set[str]:
@@ -191,23 +206,8 @@ def print_table(rows: List[Dict[str, str]]):
             )
 
 
-def main(argv: Optional[List[str]] = None) -> None:
+def main() -> None:
     global INPUT_CSV, OUTPUT_CSV
-
-    parser = argparse.ArgumentParser(
-        description="Estimate product demand from market analysis data"
-    )
-    parser.add_argument(
-        "--input",
-        default=INPUT_CSV,
-        help="Path to market analysis CSV file",
-    )
-    parser.add_argument(
-        "--output",
-        default=OUTPUT_CSV,
-        help="Where to save demand forecast results",
-    )
-    args = parser.parse_args(argv)
 
     INPUT_CSV = args.input
     OUTPUT_CSV = args.output

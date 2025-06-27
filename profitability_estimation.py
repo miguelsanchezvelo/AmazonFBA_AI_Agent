@@ -3,6 +3,7 @@ import os
 import csv
 import re
 import time
+import argparse
 from typing import List, Optional, Set
 
 LOG_FILE = "log.txt"
@@ -51,6 +52,21 @@ INPUT_CSV = os.path.join("data", "market_analysis_results.csv")
 SUPPLIER_CSV = os.path.join("data", "supplier_data.csv")
 OUTPUT_CSV = os.path.join("data", "profitability_estimation_results.csv")
 SHIPPING_COST = 2.50
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Estimate profitability of products")
+    parser.add_argument('--auto', action='store_true', help='Run in auto mode with default values')
+    parser.add_argument('--debug', action='store_true', help='Enable debug output')
+    parser.add_argument('--verbose', action='store_true', help='Enable detailed console output')
+    parser.add_argument('--max-products', type=int, default=10, help='Maximum number of products to process (if applicable)')
+    parser.add_argument('--input', default=INPUT_CSV, help='Path to market analysis CSV')
+    parser.add_argument('--supplier-costs', default=SUPPLIER_CSV, help='CSV file with supplier costs')
+    parser.add_argument('--output', default=OUTPUT_CSV, help='Where to save profitability results')
+    return parser.parse_args()
+
+
+args = parse_args()
 
 
 def load_valid_asins() -> Set[str]:
@@ -193,28 +209,8 @@ def print_top_products(rows, count=5):
         )
 
 
-def main(argv: Optional[List[str]] = None) -> None:
+def main() -> None:
     global INPUT_CSV, SUPPLIER_CSV, OUTPUT_CSV
-
-    parser = argparse.ArgumentParser(
-        description="Estimate profitability of products"
-    )
-    parser.add_argument(
-        "--input",
-        default=INPUT_CSV,
-        help="Path to market analysis CSV",
-    )
-    parser.add_argument(
-        "--supplier-costs",
-        default=SUPPLIER_CSV,
-        help="CSV file with supplier costs",
-    )
-    parser.add_argument(
-        "--output",
-        default=OUTPUT_CSV,
-        help="Where to save profitability results",
-    )
-    args = parser.parse_args(argv)
 
     INPUT_CSV = args.input
     SUPPLIER_CSV = args.supplier_costs

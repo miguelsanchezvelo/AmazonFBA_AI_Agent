@@ -52,6 +52,20 @@ INPUT_CSV = os.path.join("data", "profitability_estimation_results.csv")
 OUTPUT_CSV = os.path.join("data", "pricing_suggestions.csv")
 
 
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Get ChatGPT pricing suggestions for top products")
+    parser.add_argument('--auto', action='store_true', help='Run in auto mode with default values')
+    parser.add_argument('--debug', action='store_true', help='Enable debug output')
+    parser.add_argument('--verbose', action='store_true', help='Enable detailed console output')
+    parser.add_argument('--max-products', type=int, default=10, help='Maximum number of products to process (if applicable)')
+    parser.add_argument('--input', default=INPUT_CSV, help='CSV with profitability results')
+    parser.add_argument('--output', default=OUTPUT_CSV, help='Where to save pricing suggestions')
+    return parser.parse_args()
+
+
+args = parse_args()
+
+
 def parse_float(value: Optional[str]) -> Optional[float]:
     """Return float extracted from a string or None."""
     if value is None:
@@ -175,28 +189,9 @@ def analyze_product(client: OpenAI, model: str, row: Dict[str, str]) -> Tuple[st
     return (f"${suggested_price:.2f}" if suggested_price is not None else "", answer)
 
 
-def main(argv: Optional[List[str]] = None) -> None:
+def main() -> None:
     global INPUT_CSV, OUTPUT_CSV
 
-    parser = argparse.ArgumentParser(
-        description="Get ChatGPT pricing suggestions for top products"
-    )
-    parser.add_argument(
-        "--input",
-        default=INPUT_CSV,
-        help="CSV with profitability results",
-    )
-    parser.add_argument(
-        "--output",
-        default=OUTPUT_CSV,
-        help="Where to save pricing suggestions",
-    )
-    parser.add_argument(
-        "--auto",
-        action="store_true",
-        help="run in non-interactive mode with mock fallback",
-    )
-    args = parser.parse_args(argv)
     INPUT_CSV = args.input
     OUTPUT_CSV = args.output
     auto = args.auto

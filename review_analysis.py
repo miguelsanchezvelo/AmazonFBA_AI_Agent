@@ -32,6 +32,20 @@ KEEPA_KEY = os.getenv("KEEPA_API_KEY")
 OPENAI_KEY = os.getenv("OPENAI_API_KEY")
 
 
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Analyze competitor product reviews")
+    parser.add_argument('--auto', action='store_true', help='Run in auto mode with default values')
+    parser.add_argument('--debug', action='store_true', help='Enable debug output')
+    parser.add_argument('--verbose', action='store_true', help='Enable detailed console output')
+    parser.add_argument('--max-products', type=int, default=10, help='Maximum number of products to process (if applicable)')
+    parser.add_argument('--csv', default=INPUT_CSV, help='Input CSV with ASIN and Title')
+    parser.add_argument('--output', default=OUTPUT_CSV, help='Where to save analysis results')
+    return parser.parse_args()
+
+
+args = parse_args()
+
+
 def load_rows(path: str) -> List[Dict[str, str]]:
     """Load rows from input CSV."""
     if not os.path.exists(path):
@@ -188,19 +202,8 @@ def save_results(rows: List[Dict[str, str]], path: str) -> None:
         writer.writerows(rows)
 
 
-def main(argv: Optional[List[str]] = None) -> None:
+def main() -> None:
     global INPUT_CSV, OUTPUT_CSV
-
-    parser = argparse.ArgumentParser(
-        description="Analyze competitor product reviews"
-    )
-    parser.add_argument(
-        "--csv", default=INPUT_CSV, help="Input CSV with ASIN and Title"
-    )
-    parser.add_argument(
-        "--output", default=OUTPUT_CSV, help="Where to save analysis results"
-    )
-    args = parser.parse_args(argv)
 
     INPUT_CSV = args.csv
     OUTPUT_CSV = args.output
