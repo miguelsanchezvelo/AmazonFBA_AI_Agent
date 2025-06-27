@@ -7,6 +7,18 @@ from typing import List, Dict, Optional, Tuple
 from difflib import SequenceMatcher
 import time
 
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Discover Amazon products")
+    parser.add_argument('--auto', action='store_true', help='Run in auto mode with default values')
+    parser.add_argument('--debug', action='store_true', help='Enable debug output')
+    parser.add_argument('--verbose', action='store_true', help='Enable detailed console output')
+    parser.add_argument('--max-products', type=int, default=10, help='Maximum number of products to process (if applicable)')
+    return parser.parse_args()
+
+
+args = parse_args()
+
 LOG_FILE = "log.txt"
 
 
@@ -274,15 +286,12 @@ def print_report(products: List[Dict[str, object]]):
         )
 
 
-def main():
-    parser = argparse.ArgumentParser(description="Discover Amazon products")
-    parser.add_argument("--debug", action="store_true", help="print raw SerpAPI results")
-    parser.add_argument("--verbose", action="store_true", help="print verbose logs")
-    parser.add_argument("--max-products", type=int, default=0, help="limit products per category")
-    args = parser.parse_args()
-
+def main() -> None:
     try:
-        budget = float(input("Enter your total startup budget in USD: "))
+        if args.auto:
+            budget = 1000.0
+        else:
+            budget = float(input("Enter your total startup budget in USD: "))
     except ValueError:
         raise SystemExit("Invalid budget amount")
 

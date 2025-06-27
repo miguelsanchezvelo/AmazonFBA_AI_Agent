@@ -64,6 +64,20 @@ EMAILS_TXT = os.path.join("data", "supplier_emails.txt")
 TURNOVER_DAYS = 90  # average inventory turnover period in days
 
 
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Select products to order based on profitability and demand")
+    parser.add_argument('--auto', action='store_true', help='Run in auto mode with default values')
+    parser.add_argument('--debug', action='store_true', help='Enable debug output')
+    parser.add_argument('--verbose', action='store_true', help='Enable detailed console output')
+    parser.add_argument('--max-products', type=int, default=10, help='Maximum number of products to process (if applicable)')
+    parser.add_argument('--budget', type=float, default=None, help='Total budget in USD (otherwise prompted)')
+    parser.add_argument('--output', default=OUTPUT_CSV, help='Where to save the selection CSV')
+    return parser.parse_args()
+
+
+args = parse_args()
+
+
 # Helpers ---------------------------------------------------------------
 
 def parse_float(val: Optional[str]) -> Optional[float]:
@@ -314,24 +328,8 @@ def print_table(rows: List[Dict[str, object]], totals):
 
 # Main -----------------------------------------------------------------
 
-def main(argv: Optional[List[str]] = None) -> None:
+def main() -> None:
     global OUTPUT_CSV
-
-    parser = argparse.ArgumentParser(
-        description="Select products to order based on profitability and demand"
-    )
-    parser.add_argument(
-        "--budget",
-        type=float,
-        default=None,
-        help="Total budget in USD (otherwise prompted)",
-    )
-    parser.add_argument(
-        "--output",
-        default=OUTPUT_CSV,
-        help="Where to save the selection CSV",
-    )
-    args = parser.parse_args(argv)
 
     OUTPUT_CSV = args.output
 
@@ -349,6 +347,8 @@ def main(argv: Optional[List[str]] = None) -> None:
     
     if args.budget is not None:
         budget = args.budget
+    elif args.auto:
+        budget = 1000.0
     else:
         try:
             budget = float(input("Enter total budget in USD: "))

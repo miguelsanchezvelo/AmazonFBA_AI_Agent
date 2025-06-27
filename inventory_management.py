@@ -35,6 +35,20 @@ INPUT_CSV = os.path.join("data", "supplier_selection_results.csv")
 OUTPUT_CSV = os.path.join("data", "inventory_management_results.csv")
 
 
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Generate inventory recommendations based on supplier selections")
+    parser.add_argument('--auto', action='store_true', help='Run in auto mode with default values')
+    parser.add_argument('--debug', action='store_true', help='Enable debug output')
+    parser.add_argument('--verbose', action='store_true', help='Enable detailed console output')
+    parser.add_argument('--max-products', type=int, default=10, help='Maximum number of products to process (if applicable)')
+    parser.add_argument('--input', default=INPUT_CSV, help='CSV with supplier selections')
+    parser.add_argument('--output', default=OUTPUT_CSV, help='Where to save inventory recommendations')
+    return parser.parse_args()
+
+
+args = parse_args()
+
+
 def load_valid_asins() -> Set[str]:
     if not os.path.exists(PRODUCT_CSV):
         return set()
@@ -164,23 +178,8 @@ def print_table(rows: List[Dict[str, object]]) -> None:
         )
 
 
-def main(argv: Optional[List[str]] = None) -> None:
+def main() -> None:
     global INPUT_CSV, OUTPUT_CSV
-
-    parser = argparse.ArgumentParser(
-        description="Generate inventory recommendations based on supplier selections"
-    )
-    parser.add_argument(
-        "--input",
-        default=INPUT_CSV,
-        help="CSV with supplier selections",
-    )
-    parser.add_argument(
-        "--output",
-        default=OUTPUT_CSV,
-        help="Where to save inventory recommendations",
-    )
-    args = parser.parse_args(argv)
 
     INPUT_CSV = args.input
     OUTPUT_CSV = args.output
