@@ -25,26 +25,40 @@ FRIENDLY_NAMES: Dict[str, str] = {
 }
 
 MODULES: List[Tuple[str, str]] = [
-    ("Product Discovery", "product_discovery.py"),
-    ("Market Analysis", "market_analysis.py"),
-    ("Profitability Estimation", "profitability_estimation.py"),
-    ("Demand Forecast", "demand_forecast.py"),
-    ("Supplier Selection", "supplier_selection.py"),
-    ("Supplier Contact Generator", "supplier_contact_generator.py"),
-    ("Pricing Simulator", "pricing_simulator.py"),
-    ("Inventory Management", "inventory_management.py"),
+    ("🔍 Run Product Discovery", "product_discovery.py"),
+    ("📊 Run Market Analysis", "market_analysis.py"),
+    ("💰 Run Profitability Estimation", "profitability_estimation.py"),
+    ("📈 Run Demand Forecast", "demand_forecast.py"),
+    ("🧮 Run Supplier Selection", "supplier_selection.py"),
+    ("📤 Generate Supplier Emails", "supplier_contact_generator.py"),
+    ("🧾 Simulate Pricing Strategy", "pricing_simulator.py"),
+    ("📦 Manage Inventory", "inventory_management.py"),
 ]
 
 
 def run_module(script_name: str) -> Tuple[str, str, int]:
     """Run a module with ``--auto`` and capture the output."""
     result = subprocess.run(
-        [sys.executable, script_name, "--auto"],
+        ["python", script_name, "--auto"],
         capture_output=True,
         text=True,
-        cwd=ROOT_DIR,
+        cwd=os.getcwd(),
     )
     return result.stdout, result.stderr, result.returncode
+
+
+def commit_and_push_changes(
+    message: str = "Auto: update after running Streamlit action",
+) -> None:
+    """Commit and push changes using Git if available."""
+    try:
+        if not os.path.isdir(os.path.join(os.getcwd(), ".git")):
+            return
+        subprocess.run(["git", "add", "."], cwd=os.getcwd(), check=False)
+        subprocess.run(["git", "commit", "-m", message], cwd=os.getcwd(), check=False)
+        subprocess.run(["git", "push"], cwd=os.getcwd(), check=False)
+    except Exception:
+        pass
 
 
 def display_csv(path: str, title: str) -> None:
@@ -117,7 +131,7 @@ def pipeline_ui() -> None:
 
     for label, script in MODULES:
         with st.expander(label, expanded=False):
-            if st.button(f"Run {label}", key=f"btn_{script}"):
+            if st.button(label, key=f"btn_{script}"):
                 run_step_ui(label, script)
             if st.session_state.logs[label]:
                 st.text_area("Log", st.session_state.logs[label], height=150)
@@ -143,6 +157,7 @@ def run_step_ui(label: str, script: str) -> None:
     st.session_state.logs[label] = stdout if returncode == 0 else stderr
     if returncode == 0:
         st.success(f"✅ {label} completed successfully")
+        commit_and_push_changes(f"Auto: updated results after {label}")
     else:
         st.error(f"❌ {label} failed")
     with st.expander("Details"):
