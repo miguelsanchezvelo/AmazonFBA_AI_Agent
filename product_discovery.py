@@ -14,6 +14,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument('--debug', action='store_true', help='Enable debug output')
     parser.add_argument('--verbose', action='store_true', help='Enable detailed console output')
     parser.add_argument('--max-products', type=int, default=10, help='Maximum number of products to process (if applicable)')
+    parser.add_argument('--budget', type=float, help='Total startup budget in USD')
     return parser.parse_args()
 
 
@@ -288,7 +289,9 @@ def print_report(products: List[Dict[str, object]]):
 
 def main() -> None:
     try:
-        if args.auto:
+        if args.budget is not None:
+            budget = args.budget
+        elif args.auto:
             budget = 1000.0
         else:
             budget = float(input("Enter your total startup budget in USD: "))
