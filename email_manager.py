@@ -63,6 +63,10 @@ def _decode(value: str | bytes | None) -> str:
     return str(value)
 
 
+def safe_strip(val):
+    return val.strip() if isinstance(val, str) else ''
+
+
 def parse_email(msg: email.message.Message) -> Tuple[str, str, str, str, str]:
     """Return ``(subject, sender, body, msg_id, date)``."""
 
@@ -84,7 +88,7 @@ def parse_email(msg: email.message.Message) -> Tuple[str, str, str, str, str]:
     else:
         body = _decode(msg.get_payload(decode=True))
 
-    return subject, sender, body.strip(), msg_id, date
+    return subject, sender, safe_strip(body), msg_id, date
 
 
 def ensure_folder(imap: imaplib.IMAP4_SSL, name: str) -> None:
@@ -124,7 +128,8 @@ def extract_offer_regex(text: str) -> Tuple[str, str, str, str]:
         lead = m.group(1)
     m = re.search(r"product[:\s]*([\w\s-]+)", text, re.I)
     if m:
-        product = m.group(1).strip()
+        product = m.group(1)
+        product = safe_strip(product)
     return product, price, moq, lead
 
 
@@ -140,7 +145,8 @@ def extract_offer_ai(client: OpenAI, model: str, text: str) -> Tuple[str, str, s
         model=model,
         messages=[{"role": "user", "content": prompt}],
     )
-    content = resp.choices[0].message.content.strip()
+    content = resp.choices[0].message.content
+    content = safe_strip(content)
     try:
         data = json.loads(content)
         return (
@@ -205,7 +211,7 @@ def generate_reply(client: Optional[OpenAI], model: str, sender: str, subject: s
             {"role": "user", "content": f"From: {sender}\nSubject: {subject}\n\n{body}"},
         ],
     )
-    return resp.choices[0].message.content.strip()
+    return safe_strip(resp.choices[0].message.content)
 
 
 def process_inbox(dry_run: bool = False) -> None:
@@ -221,7 +227,7 @@ def process_inbox(dry_run: bool = False) -> None:
     imap_server = get_setting(config, "IMAP_SERVER", "imap.gmail.com")
 
     supplier_domains = get_setting(config, "SUPPLIER_DOMAINS", "") or ""
-    domains = [d.strip().lower() for d in supplier_domains.split(",") if d.strip()]
+    domains = [safe_strip(d).lower() for d in supplier_domains.split(",") if safe_strip(d)]
 
     if not email_addr or not password:
         print("Missing email credentials. Skipping.")

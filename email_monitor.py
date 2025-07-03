@@ -66,7 +66,7 @@ def parse_email(msg: email.message.Message) -> Tuple[str, str, str, List[str]]:
     else:
         body = _decode(msg.get_payload(decode=True))
 
-    return subject, sender, body.strip(), attachments
+    return subject, sender, safe_strip(body), attachments
 
 
 ASIN_RE = re.compile(r"\bB0[A-Z0-9]{7}\b")
@@ -235,3 +235,6 @@ def main(argv: List[str] | None = None) -> None:
 
 if __name__ == "__main__":  # pragma: no cover - CLI entry
     main()
+
+def safe_strip(val):
+    return val.strip() if isinstance(val, str) else ''

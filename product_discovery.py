@@ -10,6 +10,7 @@ import sys
 import io
 
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+sys.stdin = io.TextIOWrapper(sys.stdin.buffer, encoding='utf-8')
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Discover Amazon products")

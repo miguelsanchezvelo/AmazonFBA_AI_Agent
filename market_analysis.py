@@ -27,6 +27,7 @@ except Exception:  # pragma: no cover - optional dependency
 load_dotenv()
 
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+sys.stdin = io.TextIOWrapper(sys.stdin.buffer, encoding='utf-8')
 
 def safe_strip(val):
     return val.strip() if isinstance(val, str) else ''
@@ -118,13 +119,13 @@ def load_keys(prompt: bool = False) -> Tuple[Optional[str], Optional[str]]:
         if not SERPAPI_KEY:
             if sys.stdin.isatty():
                 inp = input("Enter your SerpAPI key (or leave blank): ")
-                SERPAPI_KEY = inp.strip() if inp else None
+                SERPAPI_KEY = safe_strip(inp)
             else:
                 SERPAPI_KEY = None
         if not KEEPA_KEY:
             if sys.stdin.isatty():
                 inp = input("Enter your Keepa API key (or leave blank): ")
-                KEEPA_KEY = inp.strip() if inp else None
+                KEEPA_KEY = safe_strip(inp)
             else:
                 KEEPA_KEY = None
 
@@ -297,7 +298,7 @@ def prompt_asins() -> List[str]:
     raw = safe_strip(raw)
     if not raw:
         return []
-    return [(a or '').strip().upper() for a in raw.split() if is_valid_asin(a)]
+    return [safe_strip(a).upper() for a in raw.split() if is_valid_asin(a)]
 
 
 def load_manual_csv(path: str) -> List[Dict[str, object]]:

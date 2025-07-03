@@ -1,2 +1,4 @@
 asin,title,bsr,est_monthly_sales,demand_level
-B0MOCK001,Mock Product,1000,250,LOW
+B0TEST001,Mock Product A,300,500,HIGH
+B0TEST002,Mock Product B,1000,300,MEDIUM
+B0TEST003,Mock Product C,3000,100,LOW

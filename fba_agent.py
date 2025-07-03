@@ -166,17 +166,17 @@ def request_missing_keys(serp: str | None, keepa: str | None, openai: str | None
     """Prompt the user for any missing API keys."""
 
     if not serp:
-        val = input("Enter your SerpAPI key (or leave blank): ").strip()
+        val = safe_strip(input("Enter your SerpAPI key (or leave blank): "))
         serp = val or None
         if serp:
             os.environ["SERPAPI_API_KEY"] = serp
     if not keepa:
-        val = input("Enter your Keepa API key (or leave blank): ").strip()
+        val = safe_strip(input("Enter your Keepa API key (or leave blank): "))
         keepa = val or None
         if keepa:
             os.environ["KEEPA_API_KEY"] = keepa
     if not openai:
-        val = input("Enter your OpenAI API key (or leave blank): ").strip()
+        val = safe_strip(input("Enter your OpenAI API key (or leave blank): "))
         openai = val or None
         if openai:
             os.environ["OPENAI_API_KEY"] = openai
@@ -235,7 +235,7 @@ def run_step(args: List[str], step: str, input_data: str | None = None, *, auto:
         if auto:
             return "failed", duration
         while True:
-            choice = input("Retry (r), skip (s) or abort (a)? [s]: ").strip().lower()
+            choice = safe_strip(input("Retry (r), skip (s) or abort (a)? [s]: ")).lower()
             if choice in {"r", "s", "a", ""}:
                 break
         log(f"CHOICE {step} {choice or 's'}")
@@ -404,7 +404,7 @@ def ask_reuse(step: str, paths: List[str], *, auto: bool = False, force: bool = 
         return True
     if auto:
         return False
-    choice = input(f"Existing results for {step} found. Reuse them? [y/N]: ").strip().lower()
+    choice = safe_strip(input(f"Existing results for {step} found. Reuse them? [y/N]: ")).lower()
     log(f"CHOICE reuse_{step} {choice or 'n'}")
     if choice == "y":
         print(f"{Fore.YELLOW}! Reusing cached results for {step}{Style.RESET_ALL}")
@@ -453,7 +453,7 @@ def run_validation(auto_fix: bool = False) -> Tuple[str, bool]:
     log(f"RESULT validation {status}")
     after = _git_status() if auto_fix else before
     modified = auto_fix and (before != after)
-    return output, modified
+    return safe_strip(output), modified
 
 
 def load_last_statuses() -> Dict[str, str]:
@@ -475,6 +475,10 @@ def load_last_statuses() -> Dict[str, str]:
             if len(parts) >= 3:
                 statuses[parts[1]] = parts[2]
     return statuses
+
+
+def safe_strip(val):
+    return val.strip() if isinstance(val, str) else ''
 
 
 def main() -> None:
@@ -709,12 +713,12 @@ def main() -> None:
                     res = subprocess.run(cmd, capture_output=True, text=True)
                     log(f"GIT {' '.join(cmd)} -> {res.returncode}")
                     if res.stdout:
-                        log(res.stdout.strip())
+                        log(safe_strip(res.stdout))
                     if res.stderr:
-                        log(res.stderr.strip())
+                        log(safe_strip(res.stderr))
                     if res.returncode != 0:
                         print(
-                            f"Warning: {' '.join(cmd)} failed ({res.stderr.strip()})"
+                            f"Warning: {' '.join(cmd)} failed ({safe_strip(res.stderr)})"
                         )
                         break
                 except Exception as exc:  # pragma: no cover - git failure
