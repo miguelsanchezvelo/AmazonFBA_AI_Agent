@@ -91,8 +91,8 @@ def load_valid_asins() -> Set[str]:
 def load_keys(prompt: bool = False) -> Tuple[Optional[str], Optional[str]]:
     """Load API keys from environment or config file.
 
-    If ``prompt`` is ``True`` and a key is missing, the user will be asked for
-    it. Otherwise missing keys will remain ``None``.
+    If ``prompt`` is ``True`` y hay una clave faltante, se le pedirá al usuario.
+    Si stdin no es interactivo, asignar None directamente para evitar errores.
     """
 
     global SERPAPI_KEY, KEEPA_KEY
@@ -114,9 +114,17 @@ def load_keys(prompt: bool = False) -> Tuple[Optional[str], Optional[str]]:
 
     if prompt:
         if not SERPAPI_KEY:
-            SERPAPI_KEY = input("Enter your SerpAPI key (or leave blank): ").strip() or None
+            if sys.stdin.isatty():
+                inp = input("Enter your SerpAPI key (or leave blank): ")
+                SERPAPI_KEY = inp.strip() if inp else None
+            else:
+                SERPAPI_KEY = None
         if not KEEPA_KEY:
-            KEEPA_KEY = input("Enter your Keepa API key (or leave blank): ").strip() or None
+            if sys.stdin.isatty():
+                inp = input("Enter your Keepa API key (or leave blank): ")
+                KEEPA_KEY = inp.strip() if inp else None
+            else:
+                KEEPA_KEY = None
 
     return SERPAPI_KEY, KEEPA_KEY
 
