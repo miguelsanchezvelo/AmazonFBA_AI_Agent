@@ -14,6 +14,7 @@ from email.message import EmailMessage
 from importlib.util import find_spec
 from typing import Dict, List, Tuple
 import argparse
+from mock_data import get_mock_asins
 
 try:
     from dotenv import load_dotenv
@@ -366,16 +367,12 @@ def main(argv: List[str] | None = None) -> None:
     args = parse_args(argv)
     use_mock = args.mock
     if use_mock:
-        mock_orders = [
-            {"asin": "B0MOCK001", "title": "Mock Product 1", "units_ordered": 100, "order_status": "CONFIRMED"},
-            {"asin": "B0MOCK002", "title": "Mock Product 2", "units_ordered": 50, "order_status": "CONFIRMED"},
-            {"asin": "B0MOCK003", "title": "Mock Product 3", "units_ordered": 30, "order_status": "CONFIRMED"},
-        ]
+        mock_orders = [dict(row, **{"units_ordered": 100, "order_status": "CONFIRMED"}) for row in get_mock_asins()]
         with open(args.output, 'w', newline='', encoding='utf-8') as f:
             writer = csv.DictWriter(f, fieldnames=["asin", "title", "units_ordered", "order_status"])
             writer.writeheader()
             writer.writerows(mock_orders)
-        print(f"Mock order placement data saved to {args.output}")
+        print(f"[MOCK] Saved {len(mock_orders)} order placement rows to {args.output}")
         return
     auto = args.auto or not args.confirm
     ensure_dependencies(auto)

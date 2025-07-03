@@ -8,6 +8,8 @@ import json
 from typing import List, Dict, Optional, Tuple, Set
 import sys
 import io
+from mock_data import get_mock_asins
+from utils import save_rows  # o definir save_rows localmente si no existe utils
 
 try:
     import requests
@@ -41,6 +43,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument('--csv', help='CSV with ASINs (API mode) or mock data (manual mode)')
     parser.add_argument('--no-fallback', action='store_true', help='disable API fallback searches')
     parser.add_argument('--mock', action='store_true', help='Use mock data only')
+    parser.add_argument('--real', action='store_true', help='Usar datos reales (por defecto: mock)')
     return parser.parse_args()
 
 
@@ -467,23 +470,15 @@ def main() -> None:
     parser.add_argument('--input', default='data/discovery_results.csv', help='Input CSV file')
     parser.add_argument('--output', default='data/market_analysis_results.csv', help='Output CSV file')
     parser.add_argument('--mock', action='store_true', help='Use mock data only')
+    parser.add_argument('--real', action='store_true', help='Usar datos reales (por defecto: mock)')
     args = parser.parse_args()
     INPUT_CSV = args.input
     OUTPUT_CSV = args.output
-    use_mock = args.mock
+    use_mock = not args.real
     if use_mock:
-        mock_market = [
-            {"asin": "B0MOCK001", "title": "Mock Product 1", "price": 25.99, "bsr": 350, "score": "HIGH"},
-            {"asin": "B0MOCK002", "title": "Mock Product 2", "price": 32.50, "bsr": 450, "score": "HIGH"},
-            {"asin": "B0MOCK003", "title": "Mock Product 3", "price": 40.00, "bsr": 900, "score": "MEDIUM"},
-            {"asin": "B0MOCK004", "title": "Mock Product 4", "price": 23.99, "bsr": 1200, "score": "MEDIUM"},
-            {"asin": "B0MOCK005", "title": "Mock Product 5", "price": 18.50, "bsr": 1400, "score": "LOW"},
-        ]
-        with open(OUTPUT_CSV, 'w', newline='', encoding='utf-8') as f:
-            writer = csv.DictWriter(f, fieldnames=["asin", "title", "price", "bsr", "score"])
-            writer.writeheader()
-            writer.writerows(mock_market)
-        print(f"Mock market analysis data saved to {OUTPUT_CSV}")
+        mock_market = [dict(row, **{"market_price": row["price"], "market_demand": row["demand"]}) for row in get_mock_asins()]
+        save_rows(mock_market, OUTPUT_CSV)
+        print(f"[MOCK] Saved {len(mock_market)} market analysis rows to {OUTPUT_CSV}")
         return
     # ... resto de la lógica real ...
 

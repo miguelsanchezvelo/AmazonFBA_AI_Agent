@@ -7,6 +7,7 @@ import re
 import time
 from typing import Dict, List, Optional, Tuple, Set
 import time
+from mock_data import get_mock_asins
 
 LOG_FILE = "log.txt"
 
@@ -218,16 +219,9 @@ def main() -> None:
         return
 
     if use_mock:
-        mock_pricing = [
-            {"asin": "B0MOCK001", "title": "Mock Product 1", "suggested_price": 27.99, "expected_roi": 0.65},
-            {"asin": "B0MOCK002", "title": "Mock Product 2", "suggested_price": 34.50, "expected_roi": 0.72},
-            {"asin": "B0MOCK003", "title": "Mock Product 3", "suggested_price": 42.00, "expected_roi": 0.62},
-        ]
-        with open(OUTPUT_CSV, 'w', newline='', encoding='utf-8') as f:
-            writer = csv.DictWriter(f, fieldnames=["asin", "title", "suggested_price", "expected_roi"])
-            writer.writeheader()
-            writer.writerows(mock_pricing)
-        print(f"Mock pricing suggestions saved to {OUTPUT_CSV}")
+        mock_pricing = [dict(row, **{"suggested_price": row["price"] * 1.05, "expected_roi": row["roi"] + 0.05}) for row in get_mock_asins()]
+        save_results(mock_pricing, OUTPUT_CSV)
+        print(f"[MOCK] Saved {len(mock_pricing)} pricing suggestions to {OUTPUT_CSV}")
         return
 
     results: List[Dict[str, str]] = []

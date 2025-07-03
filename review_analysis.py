@@ -22,6 +22,8 @@ try:
 except Exception:  # pragma: no cover - optional dependency
     OpenAI = None  # type: ignore
 
+from mock_data import get_mock_asins
+
 INPUT_CSV = os.path.join("data", "market_analysis_results.csv")
 OUTPUT_CSV = os.path.join("data", "review_analysis_results.csv")
 
@@ -211,18 +213,9 @@ def main() -> None:
 
     use_mock = args.mock
     if use_mock:
-        mock_reviews = [
-            {"asin": "B0MOCK001", "title": "Mock Product 1", "review_summary": "Excelente calidad y valor."},
-            {"asin": "B0MOCK002", "title": "Mock Product 2", "review_summary": "Muy útil y fácil de usar."},
-            {"asin": "B0MOCK003", "title": "Mock Product 3", "review_summary": "Buena relación calidad-precio."},
-            {"asin": "B0MOCK004", "title": "Mock Product 4", "review_summary": "Satisfecho con la compra."},
-            {"asin": "B0MOCK005", "title": "Mock Product 5", "review_summary": "Cumple lo prometido."},
-        ]
-        with open(args.output, 'w', newline='', encoding='utf-8') as f:
-            writer = csv.DictWriter(f, fieldnames=["asin", "title", "review_summary"])
-            writer.writeheader()
-            writer.writerows(mock_reviews)
-        print(f"Mock review analysis data saved to {args.output}")
+        mock_reviews = [dict(row, **{"review_summary": f"Resumen de reviews para {row['title']}"}) for row in get_mock_asins()]
+        save_results(mock_reviews, OUTPUT_CSV)
+        print(f"[MOCK] Saved {len(mock_reviews)} review analysis rows to {OUTPUT_CSV}")
         return
 
     rows = load_rows(INPUT_CSV)

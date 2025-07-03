@@ -3,6 +3,7 @@ import csv
 import os
 import time
 from typing import List, Dict, Optional, Set
+from mock_data import get_mock_asins
 
 LOG_FILE = "log.txt"
 ASIN_LOG = os.path.join("logs", "asin_mismatch.log")
@@ -187,16 +188,9 @@ def main() -> None:
 
     use_mock = args.mock
     if use_mock:
-        mock_inventory = [
-            {"asin": "B0MOCK001", "title": "Mock Product 1", "units_to_order": 100, "stock": 100, "restock_needed": "NO"},
-            {"asin": "B0MOCK002", "title": "Mock Product 2", "units_to_order": 50, "stock": 50, "restock_needed": "NO"},
-            {"asin": "B0MOCK003", "title": "Mock Product 3", "units_to_order": 30, "stock": 30, "restock_needed": "NO"},
-        ]
-        with open(args.output, 'w', newline='', encoding='utf-8') as f:
-            writer = csv.DictWriter(f, fieldnames=["asin", "title", "units_to_order", "stock", "restock_needed"])
-            writer.writeheader()
-            writer.writerows(mock_inventory)
-        print(f"Mock inventory management data saved to {args.output}")
+        mock_inventory = [dict(row, **{"units_to_order": 100, "stock": 100, "restock_needed": "NO"}) for row in get_mock_asins()]
+        save_rows(mock_inventory, OUTPUT_CSV)
+        print(f"[MOCK] Saved {len(mock_inventory)} inventory management rows to {OUTPUT_CSV}")
         return
 
     rows = load_rows(INPUT_CSV)

@@ -393,13 +393,12 @@ def run_step_ui(label: str, script: str, budget: float, dev_mode: bool) -> None:
         ]
         missing = [f for f in data_files if not os.path.exists(f)]
         if missing:
-            subprocess.run(['python', 'mock_data_generator.py'], check=False)
-    # Ejecutar el script con --mock si dev_mode está activo
+            subprocess.run(['python', 'mock_data.py'], encoding='utf-8')
+    # Ejecutar el script con el flag --mock si corresponde
     cmd = ['python', script]
     if dev_mode:
         cmd.append('--mock')
-    if 'budget' in script or 'supplier_selection' in script:
-        cmd += ['--budget', str(budget)]
+    subprocess.run(cmd, encoding='utf-8')
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding='utf-8')
     stdout, stderr = proc.communicate()
     returncode = proc.returncode

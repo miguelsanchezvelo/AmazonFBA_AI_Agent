@@ -4,6 +4,7 @@ import os
 import time
 from typing import List, Dict, Optional, Set
 import argparse
+from mock_data import get_mock_asins
 
 LOG_FILE = "log.txt"
 ASIN_LOG = os.path.join("logs", "asin_mismatch.log")
@@ -59,6 +60,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument('--input', default=INPUT_CSV, help='Path to market analysis CSV file')
     parser.add_argument('--output', default=OUTPUT_CSV, help='Where to save demand forecast results')
     parser.add_argument('--mock', action='store_true', help='Use mock data only')
+    parser.add_argument('--real', action='store_true', help='Usar datos reales (por defecto: mock)')
     return parser.parse_args()
 
 
@@ -160,21 +162,15 @@ def process(rows: List[Dict[str, str]]) -> List[Dict[str, str]]:
     return results
 
 
-def save_results(rows: List[Dict[str, str]]):
-    os.makedirs(os.path.dirname(OUTPUT_CSV), exist_ok=True)
+def save_results(rows: List[Dict[str, str]], output_file: str, fieldnames: List[str]) -> None:
+    os.makedirs(os.path.dirname(output_file), exist_ok=True)
     if not rows:
         print("No valid ASINs to forecast. Skipping save.")
         return
-    with open(OUTPUT_CSV, "w", newline="", encoding="utf-8") as f:
+    with open(output_file, "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(
             f,
-            fieldnames=[
-                "asin",
-                "title",
-                "bsr",
-                "est_monthly_sales",
-                "demand_level",
-            ],
+            fieldnames=fieldnames,
         )
         writer.writeheader()
         writer.writerows(rows)
@@ -213,23 +209,24 @@ def main() -> None:
     parser.add_argument('--input', default='data/profitability_estimation_results.csv', help='Input CSV file')
     parser.add_argument('--output', default='data/demand_forecast_results.csv', help='Output CSV file')
     parser.add_argument('--mock', action='store_true', help='Use mock data only')
+    parser.add_argument('--real', action='store_true', help='Usar datos reales (por defecto: mock)')
     args = parser.parse_args()
     INPUT_CSV = args.input
     OUTPUT_CSV = args.output
-    use_mock = args.mock
+    use_mock = not args.real
     if use_mock:
+        fieldnames = ["asin", "title", "bsr", "est_monthly_sales", "demand_level"]
         mock_demand = [
-            {"asin": "B0MOCK001", "title": "Mock Product 1", "bsr": 350, "est_monthly_sales": 1000, "demand_level": "HIGH"},
-            {"asin": "B0MOCK002", "title": "Mock Product 2", "bsr": 450, "est_monthly_sales": 500, "demand_level": "HIGH"},
-            {"asin": "B0MOCK003", "title": "Mock Product 3", "bsr": 900, "est_monthly_sales": 250, "demand_level": "MEDIUM"},
-            {"asin": "B0MOCK004", "title": "Mock Product 4", "bsr": 1200, "est_monthly_sales": 200, "demand_level": "MEDIUM"},
-            {"asin": "B0MOCK005", "title": "Mock Product 5", "bsr": 1400, "est_monthly_sales": 100, "demand_level": "LOW"},
+            {
+                "asin": row["asin"],
+                "title": row["title"],
+                "bsr": 100 + i * 100,
+                "est_monthly_sales": 1000 - i * 200,
+                "demand_level": row["demand"]
+            } for i, row in enumerate(get_mock_asins())
         ]
-        with open(OUTPUT_CSV, 'w', newline='', encoding='utf-8') as f:
-            writer = csv.DictWriter(f, fieldnames=["asin", "title", "bsr", "est_monthly_sales", "demand_level"])
-            writer.writeheader()
-            writer.writerows(mock_demand)
-        print(f"Mock demand forecast data saved to {OUTPUT_CSV}")
+        save_results(mock_demand, OUTPUT_CSV, fieldnames)
+        print(f"[MOCK] Saved {len(mock_demand)} demand forecast rows to {OUTPUT_CSV}")
         return
     rows = load_rows(INPUT_CSV)
     if not rows:
@@ -267,7 +264,7 @@ def main() -> None:
         save_results([])
         print(f"Results saved to {OUTPUT_CSV}")
         return
-    save_results(results)
+    save_results(results, OUTPUT_CSV, ["asin", "title", "bsr", "est_monthly_sales", "demand_level"])
     print(f"Results saved to {OUTPUT_CSV}")
 
 
