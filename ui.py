@@ -371,6 +371,25 @@ def pipeline_ui() -> None:
                 if os.path.exists(out_path) and file_has_content(out_path):
                     if label == "Run Supplier Selection":
                         display_supplier_selection()
+                    elif label == "Generate Supplier Emails":
+                        # Mostrar mensajes simulados editables si está en modo desarrollador
+                        supplier_dir = fba_agent.OUTPUTS["supplier_contact_generator"]
+                        import os
+                        if st.session_state.dev_mode and (not os.path.isdir(supplier_dir) or not os.listdir(supplier_dir)):
+                            # Mensaje simulado editable
+                            default_msg = (
+                                "Estimado proveedor,\n\n"
+                                "Estoy interesado en su producto y me gustaría recibir información sobre precios, condiciones de envío y plazos de entrega para el siguiente producto:\n"
+                                "- Título: Mock Product 1\n"
+                                "- ASIN: B0MOCK001\n\n"
+                                "Gracias de antemano por su atención.\n\nUn saludo."
+                            )
+                            if "mock_supplier_msg" not in st.session_state:
+                                st.session_state["mock_supplier_msg"] = default_msg
+                            msg = st.text_area("Mensaje simulado a proveedor (editable)", st.session_state["mock_supplier_msg"], height=200)
+                            st.session_state["mock_supplier_msg"] = msg
+                        else:
+                            show_messages(supplier_dir)
                     else:
                         display_csv(out_path, out_title)
                 else:
