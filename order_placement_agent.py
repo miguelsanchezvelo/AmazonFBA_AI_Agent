@@ -347,6 +347,9 @@ def parse_args(argv: List[str] | None = None) -> argparse.Namespace:
     )
     # legacy option kept for backwards compatibility
     parser.add_argument("--auto", action="store_true", help=argparse.SUPPRESS)
+    parser.add_argument('--input', default='data/inventory_management_results.csv', help='Input CSV file')
+    parser.add_argument('--output', default='data/order_placement_results.csv', help='Output CSV file')
+    parser.add_argument('--mock', action='store_true', help='Use mock data only')
 
     if argv and any(h in argv for h in ("-h", "--help")):
         parser.print_help()
@@ -361,6 +364,19 @@ def main(argv: List[str] | None = None) -> None:
     """Entry point for command line execution."""
 
     args = parse_args(argv)
+    use_mock = args.mock
+    if use_mock:
+        mock_orders = [
+            {"asin": "B0MOCK001", "title": "Mock Product 1", "units_ordered": 100, "order_status": "CONFIRMED"},
+            {"asin": "B0MOCK002", "title": "Mock Product 2", "units_ordered": 50, "order_status": "CONFIRMED"},
+            {"asin": "B0MOCK003", "title": "Mock Product 3", "units_ordered": 30, "order_status": "CONFIRMED"},
+        ]
+        with open(args.output, 'w', newline='', encoding='utf-8') as f:
+            writer = csv.DictWriter(f, fieldnames=["asin", "title", "units_ordered", "order_status"])
+            writer.writeheader()
+            writer.writerows(mock_orders)
+        print(f"Mock order placement data saved to {args.output}")
+        return
     auto = args.auto or not args.confirm
     ensure_dependencies(auto)
     process_orders(
