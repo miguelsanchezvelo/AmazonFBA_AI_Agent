@@ -47,3 +47,5 @@ Descartados por ASIN no encontrado: 0.
 2025-07-03 18:09:42 pricing_simulator: downgrading model to gpt-3.5-turbo
 2025-07-03 18:09:43 pricing_simulator: using fallback price for B08K3RCTVJ: Error code: 429 - {'error': {'message': 'You exceeded your current quota, please check your plan and billing details. For more information on this error, read the docs: https://platform.openai.com/docs/guides/error-codes/api-errors.', 'type': 'insufficient_quota', 'param': None, 'code': 'insufficient_quota'}}
 2025-07-03 18:25:12 pricing_simulator: ASIN mismatch B0MOCK001,B0MOCK002,B0MOCK003,B0MOCK004,B0MOCK005
+2025-07-03 18:51:20 pricing_simulator: ASIN mismatch B0MOCK001,B0MOCK002,B0MOCK003
+2025-07-03 18:51:24 pricing_simulator: ASIN mismatch B0MOCK001,B0MOCK002,B0MOCK003
