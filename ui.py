@@ -4,6 +4,7 @@ import sys
 import subprocess
 from typing import List, Tuple, Dict
 import openai
+import csv
 
 # Absolute path to the repository root so modules are executed
 # consistently regardless of the working directory.
@@ -300,16 +301,16 @@ def pipeline_ui() -> None:
     if "validation_ok" not in st.session_state:
         st.session_state.validation_ok = True
     if "dev_mode" not in st.session_state:
-        st.session_state.dev_mode = False
+        st.session_state.dev_mode = True
+    if "budget" not in st.session_state:
+        st.session_state.budget = 1500.0
 
     st.sidebar.title("Configuration")
     dev_mode = st.sidebar.checkbox("Modo desarrollador (mock)", value=st.session_state.dev_mode)
     st.session_state.dev_mode = dev_mode
     budget = st.sidebar.number_input(
-        "Startup Budget (USD)", min_value=100.0, value=3000.0, step=100.0
+        "Startup Budget (USD)", min_value=100.0, value=st.session_state.budget, step=100.0
     )
-    if "budget" not in st.session_state:
-        st.session_state.budget = 3000.0
     st.session_state.budget = budget
 
     if st.button("Run Tests"):
@@ -370,7 +371,6 @@ def pipeline_ui() -> None:
                         display_supplier_selection()
                     elif label == "Generate Supplier Emails":
                         supplier_dir = fba_agent.OUTPUTS["supplier_contact_generator"]
-                        import os
                         if st.session_state.dev_mode and (not os.path.isdir(supplier_dir) or not os.listdir(supplier_dir)):
                             # MOCK: Mensaje simulado editable
                             default_msg = (
@@ -388,38 +388,59 @@ def pipeline_ui() -> None:
                                 if st.button("Enviar mensaje", key="enviar_mock_msg"):
                                     st.success("Mensaje enviado (mock, no se realiza envío real)")
                         else:
-                            # MODO REAL: Generar mensaje con ChatGPT si el usuario lo solicita
-                            if "real_supplier_msg" not in st.session_state:
-                                st.session_state["real_supplier_msg"] = ""
-                            if st.button("Generar mensaje con IA", key="generar_real_msg"):
-                                # Aquí deberías obtener el contexto real del producto seleccionado
-                                prompt = (
-                                    "Redacta un correo profesional para solicitar información a un proveedor sobre el producto siguiente:\n"
-                                    "- Título: Producto de ejemplo\n- ASIN: B0EXAMPLE\n\n"
-                                    "El correo debe ser cordial y solicitar precios, condiciones de envío y plazos de entrega."
-                                )
-                                try:
-                                    openai.api_key = os.getenv("OPENAI_API_KEY")
-                                    response = openai.ChatCompletion.create(
-                                        model="gpt-3.5-turbo",
-                                        messages=[
-                                            {"role": "system", "content": "Eres un agente experto en compras FBA."},
-                                            {"role": "user", "content": prompt}
-                                        ]
+                            # MODO REAL: Un mensaje por producto con unidades asignadas
+                            supplier_csv = os.path.join("data", "supplier_selection_results.csv")
+                            productos = []
+                            if os.path.exists(supplier_csv):
+                                with open(supplier_csv, newline='', encoding='utf-8') as f:
+                                    reader = csv.DictReader(f)
+                                    for row in reader:
+                                        try:
+                                            units = int(float(row.get("units_to_order") or row.get("Units") or row.get("units") or 0))
+                                        except Exception:
+                                            units = 0
+                                        if units > 0:
+                                            productos.append({
+                                                "asin": row.get("asin") or row.get("ASIN") or "",
+                                                "title": row.get("title") or row.get("Title") or "",
+                                                "units": units
+                                            })
+                            if not productos:
+                                st.info("No hay productos con unidades asignadas para contactar proveedores.")
+                            for i, prod in enumerate(productos):
+                                st.markdown(f"**Producto:** {prod['title']}  ")
+                                st.markdown(f"**ASIN:** `{prod['asin']}`  |  **Unidades:** {prod['units']}")
+                                key_msg = f"supplier_msg_{prod['asin']}"
+                                if key_msg not in st.session_state:
+                                    st.session_state[key_msg] = ""
+                                if st.button(f"Generar mensaje con IA", key=f"generar_ia_{prod['asin']}"):
+                                    prompt = (
+                                        f"Redacta un correo profesional para solicitar información a un proveedor sobre el siguiente producto de Amazon:\n"
+                                        f"- Título: {prod['title']}\n- ASIN: {prod['asin']}\n\n"
+                                        "El correo debe ser cordial y solicitar precios, condiciones de envío y plazos de entrega."
                                     )
-                                    ai_msg = response["choices"][0]["message"]["content"].strip()
-                                    st.session_state["real_supplier_msg"] = ai_msg
-                                except Exception as e:
-                                    st.error(f"Error generando mensaje con IA: {e}")
-                            msg = st.text_area("Mensaje generado a proveedor (editable)", st.session_state["real_supplier_msg"], height=200)
-                            st.session_state["real_supplier_msg"] = msg
-                            col1, col2 = st.columns(2)
-                            with col1:
-                                if st.button("Guardar mensaje", key="guardar_real_msg"):
-                                    st.success("Mensaje guardado")
-                            with col2:
-                                if st.button("Enviar mensaje", key="enviar_real_msg"):
-                                    st.success("Mensaje enviado (simulado)")
+                                    try:
+                                        openai.api_key = os.getenv("OPENAI_API_KEY")
+                                        response = openai.ChatCompletion.create(
+                                            model="gpt-3.5-turbo",
+                                            messages=[
+                                                {"role": "system", "content": "Eres un agente experto en compras FBA."},
+                                                {"role": "user", "content": prompt}
+                                            ]
+                                        )
+                                        ai_msg = response["choices"][0]["message"]["content"].strip()
+                                        st.session_state[key_msg] = ai_msg
+                                    except Exception as e:
+                                        st.error(f"Error generando mensaje con IA: {e}")
+                                msg = st.text_area(f"Mensaje a proveedor (editable) - {prod['asin']}", st.session_state[key_msg], height=200, key=f"textarea_{prod['asin']}")
+                                st.session_state[key_msg] = msg
+                                col1, col2 = st.columns(2)
+                                with col1:
+                                    if st.button("Guardar mensaje", key=f"guardar_{prod['asin']}"):
+                                        st.success("Mensaje guardado")
+                                with col2:
+                                    if st.button("Enviar mensaje", key=f"enviar_{prod['asin']}"):
+                                        st.success("Mensaje enviado (simulado)")
                     else:
                         display_csv(out_path, out_title)
                 else:
