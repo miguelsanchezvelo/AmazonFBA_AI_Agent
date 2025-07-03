@@ -3,6 +3,7 @@ import os
 import sys
 import subprocess
 from typing import List, Tuple, Dict
+import openai
 
 # Absolute path to the repository root so modules are executed
 # consistently regardless of the working directory.
@@ -357,43 +358,72 @@ def pipeline_ui() -> None:
     prereqs_met = True
     for idx, (label, script) in enumerate(MODULES):
         with st.expander(label, expanded=False):
-            # Solo habilitar el botón si los prerequisitos están cumplidos
             is_step_disabled = disabled or not prereqs_met
             if st.button(label, key=f"btn_{script}", disabled=is_step_disabled):
                 run_step_ui(label, script, st.session_state.budget, st.session_state.dev_mode)
-            # Mostrar log si está en modo desarrollador
             if st.session_state.dev_mode and st.session_state.logs[label]:
                 st.text_area("Log", st.session_state.logs[label], height=150)
-            # Mostrar resultados del módulo justo después de ejecutarlo
-            # Usar el nombre amigable para buscar el archivo de salida
             if idx < len(output_files):
                 out_title, out_path = output_files[idx]
                 if os.path.exists(out_path) and file_has_content(out_path):
                     if label == "Run Supplier Selection":
                         display_supplier_selection()
                     elif label == "Generate Supplier Emails":
-                        # Mostrar mensajes simulados editables si está en modo desarrollador
                         supplier_dir = fba_agent.OUTPUTS["supplier_contact_generator"]
                         import os
                         if st.session_state.dev_mode and (not os.path.isdir(supplier_dir) or not os.listdir(supplier_dir)):
-                            # Mensaje simulado editable
+                            # MOCK: Mensaje simulado editable
                             default_msg = (
-                                "Estimado proveedor,\n\n"
-                                "Estoy interesado en su producto y me gustaría recibir información sobre precios, condiciones de envío y plazos de entrega para el siguiente producto:\n"
-                                "- Título: Mock Product 1\n"
-                                "- ASIN: B0MOCK001\n\n"
-                                "Gracias de antemano por su atención.\n\nUn saludo."
+                                "Estimado proveedor,\n\nEstoy interesado en su producto y me gustaría recibir información sobre precios, condiciones de envío y plazos de entrega para el siguiente producto:\n- Título: Mock Product 1\n- ASIN: B0MOCK001\n\nGracias de antemano por su atención.\n\nUn saludo."
                             )
                             if "mock_supplier_msg" not in st.session_state:
                                 st.session_state["mock_supplier_msg"] = default_msg
                             msg = st.text_area("Mensaje simulado a proveedor (editable)", st.session_state["mock_supplier_msg"], height=200)
                             st.session_state["mock_supplier_msg"] = msg
+                            col1, col2 = st.columns(2)
+                            with col1:
+                                if st.button("Guardar mensaje", key="guardar_mock_msg"):
+                                    st.success("Mensaje guardado (mock)")
+                            with col2:
+                                if st.button("Enviar mensaje", key="enviar_mock_msg"):
+                                    st.success("Mensaje enviado (mock, no se realiza envío real)")
                         else:
-                            show_messages(supplier_dir)
+                            # MODO REAL: Generar mensaje con ChatGPT si el usuario lo solicita
+                            if "real_supplier_msg" not in st.session_state:
+                                st.session_state["real_supplier_msg"] = ""
+                            if st.button("Generar mensaje con IA", key="generar_real_msg"):
+                                # Aquí deberías obtener el contexto real del producto seleccionado
+                                prompt = (
+                                    "Redacta un correo profesional para solicitar información a un proveedor sobre el producto siguiente:\n"
+                                    "- Título: Producto de ejemplo\n- ASIN: B0EXAMPLE\n\n"
+                                    "El correo debe ser cordial y solicitar precios, condiciones de envío y plazos de entrega."
+                                )
+                                try:
+                                    openai.api_key = os.getenv("OPENAI_API_KEY")
+                                    response = openai.ChatCompletion.create(
+                                        model="gpt-3.5-turbo",
+                                        messages=[
+                                            {"role": "system", "content": "Eres un agente experto en compras FBA."},
+                                            {"role": "user", "content": prompt}
+                                        ]
+                                    )
+                                    ai_msg = response["choices"][0]["message"]["content"].strip()
+                                    st.session_state["real_supplier_msg"] = ai_msg
+                                except Exception as e:
+                                    st.error(f"Error generando mensaje con IA: {e}")
+                            msg = st.text_area("Mensaje generado a proveedor (editable)", st.session_state["real_supplier_msg"], height=200)
+                            st.session_state["real_supplier_msg"] = msg
+                            col1, col2 = st.columns(2)
+                            with col1:
+                                if st.button("Guardar mensaje", key="guardar_real_msg"):
+                                    st.success("Mensaje guardado")
+                            with col2:
+                                if st.button("Enviar mensaje", key="enviar_real_msg"):
+                                    st.success("Mensaje enviado (simulado)")
                     else:
                         display_csv(out_path, out_title)
                 else:
-                    prereqs_met = False  # Si no hay resultados, los siguientes módulos quedan deshabilitados
+                    prereqs_met = False
             else:
                 prereqs_met = False
 
