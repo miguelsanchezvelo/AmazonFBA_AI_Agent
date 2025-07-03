@@ -6,6 +6,8 @@ import argparse
 import time
 import json
 from typing import List, Dict, Optional, Tuple, Set
+import sys
+import io
 
 try:
     import requests
@@ -18,11 +20,13 @@ except Exception:  # pragma: no cover - optional dependency
     load_dotenv = lambda: None  # type: ignore
 
 try:
-    from serpapi import GoogleSearch
+    import serpapi
 except Exception:  # pragma: no cover - optional dependency
-    GoogleSearch = None  # type: ignore
+    serpapi = None  # type: ignore
 
 load_dotenv()
+
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 
 
 def parse_args() -> argparse.Namespace:
@@ -151,6 +155,9 @@ def evaluate_potential(product: Dict[str, Optional[float]]) -> str:
 
 def get_product_data_serpapi(asin: Optional[str] = None, title: Optional[str] = None) -> Optional[Dict[str, str]]:
     key, _ = load_keys()
+    if serpapi is None or not key:
+        return None
+    client = serpapi.Client(api_key=key)
     if asin:
         params = {
             "engine": "amazon",
@@ -160,7 +167,7 @@ def get_product_data_serpapi(asin: Optional[str] = None, title: Optional[str] = 
             "asin": asin,
         }
         try:
-            result = GoogleSearch(params).get_dict()
+            result = client.search(params).as_dict()
             product = result.get("product_results") or {}
             if not product:
                 return None
@@ -198,7 +205,7 @@ def get_product_data_serpapi(asin: Optional[str] = None, title: Optional[str] = 
             "search_term": title,
         }
         try:
-            result = GoogleSearch(params).get_dict()
+            result = client.search(params).as_dict()
             items = result.get("organic_results", [])
             if not items:
                 return None
