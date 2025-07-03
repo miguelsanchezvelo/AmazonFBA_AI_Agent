@@ -364,7 +364,7 @@ def pipeline_ui() -> None:
     display_csv(fba_agent.OUTPUTS["market_analysis"], "Market Analysis")
     display_csv(fba_agent.OUTPUTS["profitability_estimation"], "Profitability")
     display_csv(fba_agent.OUTPUTS["demand_forecast"], "Demand Forecast")
-    display_csv(fba_agent.OUTPUTS["supplier_selection"], "Supplier Selection")
+    display_supplier_selection()
     display_csv(fba_agent.OUTPUTS["pricing_simulator"], "Pricing Suggestions")
     display_csv(fba_agent.OUTPUTS["inventory_management"], "Inventory Management")
 
@@ -401,6 +401,25 @@ def parse_cli() -> argparse.Namespace:
     parser.add_argument("--auto", action="store_true", help="run pipeline automatically")
     args, _ = parser.parse_known_args()
     return args
+
+
+def display_supplier_selection():
+    path = fba_agent.OUTPUTS["supplier_selection"]
+    if not file_has_content(path):
+        st.warning("No se encontraron proveedores para los productos seleccionados. Esto puede deberse a que:")
+        st.markdown("- Ningún producto cumple los filtros de rentabilidad o demanda.\n- Los archivos de entrada están vacíos o los ASINs no coinciden.\n- Todos los productos tienen ROI <= 0 o demanda baja.\n- Hay un error en la generación de datos previos.")
+        return
+    df = pd.read_csv(path)
+    if df.empty:
+        st.warning("No se encontraron proveedores para los productos seleccionados. Revisa los filtros y los datos de entrada.")
+        return
+    st.subheader("Selección de Proveedores")
+    # Métricas resumen
+    total_cost = df["total_cost"].sum() if "total_cost" in df else 0
+    total_profit = df["estimated_profit"].sum() if "estimated_profit" in df else 0
+    st.metric("Coste total", f"${total_cost:,.2f}")
+    st.metric("Beneficio estimado", f"${total_profit:,.2f}")
+    st.dataframe(df)
 
 
 if __name__ == "__main__":

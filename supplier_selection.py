@@ -101,7 +101,11 @@ def parse_int(val: Optional[str]) -> Optional[int]:
 def is_viable(row: Dict[str, str]) -> bool:
     """Return True if the product should be processed."""
     roi = parse_float(row.get("roi"))
-    viable_flag = str(row.get("Viable", "YES")).strip().upper()
+    viable_flag = row.get("Viable", "YES")
+    if viable_flag is not None:
+        viable_flag = str(viable_flag).strip().upper()
+    else:
+        viable_flag = "NO"
     return (roi is not None and roi > 0) or viable_flag == "YES"
 
 
@@ -243,6 +247,11 @@ def join_data(profit_rows: List[Dict[str, str]], demand_rows: List[Dict[str, str
         log_asin_mismatch("supplier_selection", unknown)
         log(f"supplier_selection: ASIN mismatch {','.join(sorted(unknown))}")
         if not combined:
+            msg = ("No viable products for supplier selection. "
+                   "Esto puede deberse a que ningún producto cumple los filtros de ROI/demanda, "
+                   "los archivos de entrada están vacíos o los ASINs no coinciden.")
+            print(msg)
+            log(msg)
             return []
     if unprofitable:
         print(
@@ -343,7 +352,12 @@ def main() -> None:
     combined = [r for r in combined if str(r.get("demand_level")) in ("MEDIUM", "HIGH")]
     combined.sort(key=lambda x: parse_float(x.get("roi")) or 0.0, reverse=True)
     if not combined:
-        print("No viable products for supplier selection.")
+        msg = ("No viable products for supplier selection. "
+               "Esto puede deberse a que ningún producto cumple los filtros de ROI/demanda, "
+               "los archivos de entrada están vacíos o los ASINs no coinciden.")
+        print(msg)
+        log(msg)
+        return []
     
     if args.budget is not None:
         budget = args.budget
