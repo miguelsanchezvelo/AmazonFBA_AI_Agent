@@ -6,7 +6,10 @@ from math import floor
 from typing import List, Dict, Optional, Tuple
 from difflib import SequenceMatcher
 import time
+import sys
+import io
 
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Discover Amazon products")
