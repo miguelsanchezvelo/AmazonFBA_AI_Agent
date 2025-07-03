@@ -21,6 +21,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument('--budget', type=float, help='Total startup budget in USD')
     parser.add_argument('--output', type=str, help='Output CSV file')
     parser.add_argument('--keywords', type=str, help='Keywords for product discovery')
+    parser.add_argument('--mock', action='store_true', help='Use mock data only')
     return parser.parse_args()
 
 
@@ -295,8 +296,29 @@ def print_report(products: List[Dict[str, object]]):
 
 def main() -> None:
     global OUTPUT_CSV
+    parser = argparse.ArgumentParser(description="Product discovery")
+    parser.add_argument('--output', default='data/discovery_results.csv', help='Output CSV file')
+    parser.add_argument('--keywords', default=None, help='Keywords for product discovery')
+    parser.add_argument('--mock', action='store_true', help='Use mock data only')
+    args = parser.parse_args()
     OUTPUT_CSV = args.output
-    keywords = load_keywords(args.keywords)
+    use_mock = args.mock
+    if use_mock:
+        # Usar datos mock consistentes
+        mock_products = [
+            {"asin": "B0MOCK001", "title": "Mock Product 1", "price": 25.99},
+            {"asin": "B0MOCK002", "title": "Mock Product 2", "price": 32.50},
+            {"asin": "B0MOCK003", "title": "Mock Product 3", "price": 40.00},
+            {"asin": "B0MOCK004", "title": "Mock Product 4", "price": 23.99},
+            {"asin": "B0MOCK005", "title": "Mock Product 5", "price": 18.50},
+        ]
+        with open(OUTPUT_CSV, 'w', newline='', encoding='utf-8') as f:
+            writer = csv.DictWriter(f, fieldnames=["asin", "title", "price"])
+            writer.writeheader()
+            writer.writerows(mock_products)
+        print(f"Mock product discovery data saved to {OUTPUT_CSV}")
+        return
+    keywords = args.keywords.split(',') if args.keywords else []
     if not keywords:
         msg = "No se encontraron palabras clave para el descubrimiento de productos. El archivo de entrada está vacío."
         print(msg)

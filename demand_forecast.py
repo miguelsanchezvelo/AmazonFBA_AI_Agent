@@ -58,6 +58,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument('--max-products', type=int, default=10, help='Maximum number of products to process (if applicable)')
     parser.add_argument('--input', default=INPUT_CSV, help='Path to market analysis CSV file')
     parser.add_argument('--output', default=OUTPUT_CSV, help='Where to save demand forecast results')
+    parser.add_argument('--mock', action='store_true', help='Use mock data only')
     return parser.parse_args()
 
 
@@ -208,10 +209,28 @@ def print_table(rows: List[Dict[str, str]]):
 
 def main() -> None:
     global INPUT_CSV, OUTPUT_CSV
-
+    parser = argparse.ArgumentParser(description="Demand forecast")
+    parser.add_argument('--input', default='data/profitability_estimation_results.csv', help='Input CSV file')
+    parser.add_argument('--output', default='data/demand_forecast_results.csv', help='Output CSV file')
+    parser.add_argument('--mock', action='store_true', help='Use mock data only')
+    args = parser.parse_args()
     INPUT_CSV = args.input
     OUTPUT_CSV = args.output
-
+    use_mock = args.mock
+    if use_mock:
+        mock_demand = [
+            {"asin": "B0MOCK001", "title": "Mock Product 1", "bsr": 350, "est_monthly_sales": 1000, "demand_level": "HIGH"},
+            {"asin": "B0MOCK002", "title": "Mock Product 2", "bsr": 450, "est_monthly_sales": 500, "demand_level": "HIGH"},
+            {"asin": "B0MOCK003", "title": "Mock Product 3", "bsr": 900, "est_monthly_sales": 250, "demand_level": "MEDIUM"},
+            {"asin": "B0MOCK004", "title": "Mock Product 4", "bsr": 1200, "est_monthly_sales": 200, "demand_level": "MEDIUM"},
+            {"asin": "B0MOCK005", "title": "Mock Product 5", "bsr": 1400, "est_monthly_sales": 100, "demand_level": "LOW"},
+        ]
+        with open(OUTPUT_CSV, 'w', newline='', encoding='utf-8') as f:
+            writer = csv.DictWriter(f, fieldnames=["asin", "title", "bsr", "est_monthly_sales", "demand_level"])
+            writer.writeheader()
+            writer.writerows(mock_demand)
+        print(f"Mock demand forecast data saved to {OUTPUT_CSV}")
+        return
     rows = load_rows(INPUT_CSV)
     if not rows:
         msg = "No se encontraron productos para estimar demanda. El archivo de entrada está vacío."

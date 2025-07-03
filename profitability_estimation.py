@@ -63,6 +63,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument('--input', default=INPUT_CSV, help='Path to market analysis CSV')
     parser.add_argument('--supplier-costs', default=SUPPLIER_CSV, help='CSV file with supplier costs')
     parser.add_argument('--output', default=OUTPUT_CSV, help='Where to save profitability results')
+    parser.add_argument('--mock', action='store_true', help='Use mock data only')
     return parser.parse_args()
 
 
@@ -212,7 +213,28 @@ def print_top_products(rows, count=5):
 
 def main() -> None:
     global INPUT_CSV, SUPPLIER_CSV, OUTPUT_CSV
-
+    parser = argparse.ArgumentParser(description="Profitability estimation")
+    parser.add_argument('--input', default='data/market_analysis_results.csv', help='Input CSV file')
+    parser.add_argument('--output', default='data/profitability_estimation_results.csv', help='Output CSV file')
+    parser.add_argument('--mock', action='store_true', help='Use mock data only')
+    args = parser.parse_args()
+    INPUT_CSV = args.input
+    OUTPUT_CSV = args.output
+    use_mock = args.mock
+    if use_mock:
+        mock_profit = [
+            {"asin": "B0MOCK001", "title": "Mock Product 1", "price": 25.99, "cost": 10.0, "fba_fees": 4.0, "shipping": 2.5, "profit": 8.5, "roi": 0.59, "score": "HIGH", "Viable": "YES"},
+            {"asin": "B0MOCK002", "title": "Mock Product 2", "price": 32.50, "cost": 12.0, "fba_fees": 5.0, "shipping": 2.5, "profit": 13.0, "roi": 0.7, "score": "HIGH", "Viable": "YES"},
+            {"asin": "B0MOCK003", "title": "Mock Product 3", "price": 40.00, "cost": 15.0, "fba_fees": 6.0, "shipping": 2.5, "profit": 16.5, "roi": 0.6, "score": "MEDIUM", "Viable": "YES"},
+            {"asin": "B0MOCK004", "title": "Mock Product 4", "price": 23.99, "cost": 9.0, "fba_fees": 3.5, "shipping": 2.5, "profit": 8.99, "roi": 0.5, "score": "MEDIUM", "Viable": "YES"},
+            {"asin": "B0MOCK005", "title": "Mock Product 5", "price": 18.50, "cost": 7.0, "fba_fees": 3.0, "shipping": 2.5, "profit": 6.0, "roi": 0.4, "score": "LOW", "Viable": "NO"},
+        ]
+        with open(OUTPUT_CSV, 'w', newline='', encoding='utf-8') as f:
+            writer = csv.DictWriter(f, fieldnames=["asin", "title", "price", "cost", "fba_fees", "shipping", "profit", "roi", "score", "Viable"])
+            writer.writeheader()
+            writer.writerows(mock_profit)
+        print(f"Mock profitability data saved to {OUTPUT_CSV}")
+        return
     INPUT_CSV = args.input
     SUPPLIER_CSV = args.supplier_costs
     OUTPUT_CSV = args.output

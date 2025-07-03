@@ -298,8 +298,12 @@ def pipeline_ui() -> None:
         st.session_state.tests_ok = True
     if "validation_ok" not in st.session_state:
         st.session_state.validation_ok = True
+    if "dev_mode" not in st.session_state:
+        st.session_state.dev_mode = False
 
     st.sidebar.title("Configuration")
+    dev_mode = st.sidebar.checkbox("Modo desarrollador (mock)", value=st.session_state.dev_mode)
+    st.session_state.dev_mode = dev_mode
     budget = st.sidebar.number_input(
         "Startup Budget (USD)", min_value=100.0, value=3000.0, step=100.0
     )
@@ -344,7 +348,7 @@ def pipeline_ui() -> None:
             step_name = os.path.splitext(script)[0]
             required_inputs = fba_agent.STEP_INPUTS.get(step_name, [])
             if all(file_has_content(p) for p in required_inputs):
-                run_step_ui(label, script, st.session_state.budget)
+                run_step_ui(label, script, st.session_state.budget, st.session_state.dev_mode)
             else:
                 st.toast(f"Skipping {label} - prerequisites not met.")
 
@@ -356,8 +360,8 @@ def pipeline_ui() -> None:
             is_step_disabled = disabled or not prereqs_met
 
             if st.button(label, key=f"btn_{script}", disabled=is_step_disabled):
-                run_step_ui(label, script, st.session_state.budget)
-            if st.session_state.logs[label]:
+                run_step_ui(label, script, st.session_state.budget, st.session_state.dev_mode)
+            if st.session_state.dev_mode and st.session_state.logs[label]:
                 st.text_area("Log", st.session_state.logs[label], height=150)
 
     display_csv(fba_agent.OUTPUTS["product_discovery"], "Product Results")
@@ -374,17 +378,39 @@ def pipeline_ui() -> None:
     summary_screen()
 
 
-def run_step_ui(label: str, script: str, budget: float) -> None:
+def run_step_ui(label: str, script: str, budget: float, dev_mode: bool) -> None:
     """Execute a module and display the results in the UI."""
-    with st.spinner(f"Running {label}..."):
-        stdout, stderr, returncode, log = run_module(script, budget)
+    import os
+    import subprocess
+    # Si dev_mode está activo, asegurarse de que los datos mock existen
+    if dev_mode:
+        data_files = [
+            'data/discovery_results.csv',
+            'data/market_analysis_results.csv',
+            'data/profitability_estimation_results.csv',
+            'data/demand_forecast_results.csv',
+            'data/supplier_selection_results.csv',
+        ]
+        missing = [f for f in data_files if not os.path.exists(f)]
+        if missing:
+            subprocess.run(['python', 'mock_data_generator.py'], check=False)
+    # Ejecutar el script con --mock si dev_mode está activo
+    cmd = ['python', script]
+    if dev_mode:
+        cmd.append('--mock')
+    if 'budget' in script or 'supplier_selection' in script:
+        cmd += ['--budget', str(budget)]
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding='utf-8')
+    stdout, stderr = proc.communicate()
+    returncode = proc.returncode
+    log = stdout + '\n' + stderr
     st.session_state.logs[label] = stdout if returncode == 0 else stderr
     if returncode == 0:
         st.success(f"✅ {label} completed successfully")
         commit_and_push_changes(f"Auto: updated results after {label}")
     else:
         st.error(f"❌ {label} failed")
-    with st.expander("Step Log", expanded=returncode != 0):
+    with st.expander("Step Log", expanded=returncode != 0 and dev_mode):
         st.code(log)
 
 

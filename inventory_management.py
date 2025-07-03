@@ -43,6 +43,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument('--max-products', type=int, default=10, help='Maximum number of products to process (if applicable)')
     parser.add_argument('--input', default=INPUT_CSV, help='CSV with supplier selections')
     parser.add_argument('--output', default=OUTPUT_CSV, help='Where to save inventory recommendations')
+    parser.add_argument('--mock', action='store_true', help='Use mock data only')
     return parser.parse_args()
 
 
@@ -183,6 +184,20 @@ def main() -> None:
 
     INPUT_CSV = args.input
     OUTPUT_CSV = args.output
+
+    use_mock = args.mock
+    if use_mock:
+        mock_inventory = [
+            {"asin": "B0MOCK001", "title": "Mock Product 1", "units_to_order": 100, "stock": 100, "restock_needed": "NO"},
+            {"asin": "B0MOCK002", "title": "Mock Product 2", "units_to_order": 50, "stock": 50, "restock_needed": "NO"},
+            {"asin": "B0MOCK003", "title": "Mock Product 3", "units_to_order": 30, "stock": 30, "restock_needed": "NO"},
+        ]
+        with open(args.output, 'w', newline='', encoding='utf-8') as f:
+            writer = csv.DictWriter(f, fieldnames=["asin", "title", "units_to_order", "stock", "restock_needed"])
+            writer.writeheader()
+            writer.writerows(mock_inventory)
+        print(f"Mock inventory management data saved to {args.output}")
+        return
 
     rows = load_rows(INPUT_CSV)
     if not rows:

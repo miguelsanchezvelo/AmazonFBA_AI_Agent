@@ -40,6 +40,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument('--max-products', type=int, default=10, help='Maximum number of products to process (if applicable)')
     parser.add_argument('--csv', default=INPUT_CSV, help='Input CSV with ASIN and Title')
     parser.add_argument('--output', default=OUTPUT_CSV, help='Where to save analysis results')
+    parser.add_argument('--mock', action='store_true', help='Use mock data only')
     return parser.parse_args()
 
 
@@ -207,6 +208,22 @@ def main() -> None:
 
     INPUT_CSV = args.csv
     OUTPUT_CSV = args.output
+
+    use_mock = args.mock
+    if use_mock:
+        mock_reviews = [
+            {"asin": "B0MOCK001", "title": "Mock Product 1", "review_summary": "Excelente calidad y valor."},
+            {"asin": "B0MOCK002", "title": "Mock Product 2", "review_summary": "Muy útil y fácil de usar."},
+            {"asin": "B0MOCK003", "title": "Mock Product 3", "review_summary": "Buena relación calidad-precio."},
+            {"asin": "B0MOCK004", "title": "Mock Product 4", "review_summary": "Satisfecho con la compra."},
+            {"asin": "B0MOCK005", "title": "Mock Product 5", "review_summary": "Cumple lo prometido."},
+        ]
+        with open(args.output, 'w', newline='', encoding='utf-8') as f:
+            writer = csv.DictWriter(f, fieldnames=["asin", "title", "review_summary"])
+            writer.writeheader()
+            writer.writerows(mock_reviews)
+        print(f"Mock review analysis data saved to {args.output}")
+        return
 
     rows = load_rows(INPUT_CSV)
     if not rows:

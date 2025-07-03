@@ -20,3 +20,29 @@
 2025-07-03 17:58:21 pricing_simulator: using fallback price for B0161VA394: Error code: 429 - {'error': {'message': 'You exceeded your current quota, please check your plan and billing details. For more information on this error, read the docs: https://platform.openai.com/docs/guides/error-codes/api-errors.', 'type': 'insufficient_quota', 'param': None, 'code': 'insufficient_quota'}}
 2025-07-03 17:58:22 pricing_simulator: downgrading model to gpt-3.5-turbo
 2025-07-03 17:58:23 pricing_simulator: using fallback price for B08K3RCTVJ: Error code: 429 - {'error': {'message': 'You exceeded your current quota, please check your plan and billing details. For more information on this error, read the docs: https://platform.openai.com/docs/guides/error-codes/api-errors.', 'type': 'insufficient_quota', 'param': None, 'code': 'insufficient_quota'}}
+2025-07-03 18:07:36 No se encontraron productos viables para proveedores.
+Total productos analizados: 3.
+Descartados por ROI <= 0: 0.
+Descartados por demanda insuficiente o no encontrada: 3.
+Descartados por ASIN no encontrado: 0.
+
+2025-07-03 18:07:36 No viable products for supplier selection. Esto puede deberse a que ningún producto cumple los filtros de ROI/demanda, los archivos de entrada están vacíos o los ASINs no coinciden.
+2025-07-03 18:07:50 pricing_simulator: downgrading model to gpt-3.5-turbo
+2025-07-03 18:07:52 pricing_simulator: using fallback price for B09FYTG37V: Error code: 429 - {'error': {'message': 'You exceeded your current quota, please check your plan and billing details. For more information on this error, read the docs: https://platform.openai.com/docs/guides/error-codes/api-errors.', 'type': 'insufficient_quota', 'param': None, 'code': 'insufficient_quota'}}
+2025-07-03 18:07:52 pricing_simulator: downgrading model to gpt-3.5-turbo
+2025-07-03 18:07:54 pricing_simulator: using fallback price for B0161VA394: Error code: 429 - {'error': {'message': 'You exceeded your current quota, please check your plan and billing details. For more information on this error, read the docs: https://platform.openai.com/docs/guides/error-codes/api-errors.', 'type': 'insufficient_quota', 'param': None, 'code': 'insufficient_quota'}}
+2025-07-03 18:07:54 pricing_simulator: downgrading model to gpt-3.5-turbo
+2025-07-03 18:07:56 pricing_simulator: using fallback price for B08K3RCTVJ: Error code: 429 - {'error': {'message': 'You exceeded your current quota, please check your plan and billing details. For more information on this error, read the docs: https://platform.openai.com/docs/guides/error-codes/api-errors.', 'type': 'insufficient_quota', 'param': None, 'code': 'insufficient_quota'}}
+2025-07-03 18:09:30 No se encontraron productos viables para proveedores.
+Total productos analizados: 3.
+Descartados por ROI <= 0: 0.
+Descartados por demanda insuficiente o no encontrada: 3.
+Descartados por ASIN no encontrado: 0.
+
+2025-07-03 18:09:30 No viable products for supplier selection. Esto puede deberse a que ningún producto cumple los filtros de ROI/demanda, los archivos de entrada están vacíos o los ASINs no coinciden.
+2025-07-03 18:09:37 pricing_simulator: downgrading model to gpt-3.5-turbo
+2025-07-03 18:09:39 pricing_simulator: using fallback price for B09FYTG37V: Error code: 429 - {'error': {'message': 'You exceeded your current quota, please check your plan and billing details. For more information on this error, read the docs: https://platform.openai.com/docs/guides/error-codes/api-errors.', 'type': 'insufficient_quota', 'param': None, 'code': 'insufficient_quota'}}
+2025-07-03 18:09:39 pricing_simulator: downgrading model to gpt-3.5-turbo
+2025-07-03 18:09:41 pricing_simulator: using fallback price for B0161VA394: Error code: 429 - {'error': {'message': 'You exceeded your current quota, please check your plan and billing details. For more information on this error, read the docs: https://platform.openai.com/docs/guides/error-codes/api-errors.', 'type': 'insufficient_quota', 'param': None, 'code': 'insufficient_quota'}}
+2025-07-03 18:09:42 pricing_simulator: downgrading model to gpt-3.5-turbo
+2025-07-03 18:09:43 pricing_simulator: using fallback price for B08K3RCTVJ: Error code: 429 - {'error': {'message': 'You exceeded your current quota, please check your plan and billing details. For more information on this error, read the docs: https://platform.openai.com/docs/guides/error-codes/api-errors.', 'type': 'insufficient_quota', 'param': None, 'code': 'insufficient_quota'}}

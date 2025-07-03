@@ -72,6 +72,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument('--max-products', type=int, default=10, help='Maximum number of products to process (if applicable)')
     parser.add_argument('--budget', type=float, default=None, help='Total budget in USD (otherwise prompted)')
     parser.add_argument('--output', default=OUTPUT_CSV, help='Where to save the selection CSV')
+    parser.add_argument('--mock', action='store_true', help='Use mock data only')
     return parser.parse_args()
 
 
@@ -363,9 +364,24 @@ def print_table(rows: List[Dict[str, object]], totals):
 
 def main() -> None:
     global OUTPUT_CSV
-
+    parser = argparse.ArgumentParser(description="Supplier selection")
+    parser.add_argument('--output', default='data/supplier_selection_results.csv', help='Output CSV file')
+    parser.add_argument('--mock', action='store_true', help='Use mock data only')
+    args = parser.parse_args()
     OUTPUT_CSV = args.output
-
+    use_mock = args.mock
+    if use_mock:
+        mock_supplier = [
+            {"asin": "B0MOCK001", "title": "Mock Product 1", "price": 25.99, "cost": 10.0, "roi": 0.59, "temporal_roi": 2.1, "demand": "HIGH", "units_to_order": 100, "total_cost": 1000.0, "estimated_profit": 850.0},
+            {"asin": "B0MOCK002", "title": "Mock Product 2", "price": 32.50, "cost": 12.0, "roi": 0.7, "temporal_roi": 2.5, "demand": "HIGH", "units_to_order": 50, "total_cost": 600.0, "estimated_profit": 650.0},
+            {"asin": "B0MOCK003", "title": "Mock Product 3", "price": 40.00, "cost": 15.0, "roi": 0.6, "temporal_roi": 2.0, "demand": "MEDIUM", "units_to_order": 30, "total_cost": 450.0, "estimated_profit": 495.0},
+        ]
+        with open(OUTPUT_CSV, 'w', newline='', encoding='utf-8') as f:
+            writer = csv.DictWriter(f, fieldnames=["asin", "title", "price", "cost", "roi", "temporal_roi", "demand", "units_to_order", "total_cost", "estimated_profit"])
+            writer.writeheader()
+            writer.writerows(mock_supplier)
+        print(f"Mock supplier selection data saved to {OUTPUT_CSV}")
+        return
     ensure_mock_data()
     profit_rows = load_rows(PROFITABILITY_CSV)
     demand_rows = load_rows(DEMAND_CSV)
