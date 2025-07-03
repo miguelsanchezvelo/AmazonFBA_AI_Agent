@@ -91,7 +91,7 @@ def search_similar_asin(title: str, verbose: bool = False) -> Optional[str]:
             print("SERPAPI_API_KEY not configured")
         return None
     try:
-        from serpapi import GoogleSearch
+        import serpapi
     except Exception as exc:  # pragma: no cover - optional dependency
         if verbose:
             print(f"SerpAPI import error: {exc}")
@@ -105,8 +105,8 @@ def search_similar_asin(title: str, verbose: bool = False) -> Optional[str]:
         "api_key": key,
     }
     try:
-        search = GoogleSearch(params)
-        data = search.get_dict()
+        client = serpapi.Client(api_key=key)
+        data = client.search(params).as_dict()
     except Exception as exc:
         if verbose:
             print(f"Error estimating ASIN for '{title}': {exc}")
@@ -129,9 +129,10 @@ def search_category(keyword: str, pages: int = 3, debug: bool = False) -> List[D
     key = get_api_key()
     if not key:
         raise RuntimeError("SERPAPI_API_KEY not configured")
-    from serpapi import GoogleSearch
+    import serpapi
 
     results = []
+    client = serpapi.Client(api_key=key)
     for page in range(1, pages + 1):
         params = {
             "engine": "amazon",
@@ -141,8 +142,7 @@ def search_category(keyword: str, pages: int = 3, debug: bool = False) -> List[D
             "page": page,
             "api_key": key,
         }
-        search = GoogleSearch(params)
-        data = search.get_dict()
+        data = client.search(params).as_dict()
         raw_items = data.get("organic_results", []) or []
         if debug:
             print(f"DEBUG page {page} results for '{keyword}': {raw_items}")

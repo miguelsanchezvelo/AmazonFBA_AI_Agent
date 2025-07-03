@@ -1,0 +1,2 @@
+ASIN: B0ABCDE007 | Title: Cordless Handheld Vacuum | Error: Model 'gpt-4' not available: Error code: 404 - {'error': {'message': 'The model `gpt-4` does not exist or you do not have access to it.', 'type': 'invalid_request_error', 'param': None, 'code': 'model_not_found'}}
+ASIN: B0ABCDE002 | Title: Non-Stick Frying Pan 12 Inch | Error: Model 'gpt-4' not available: Error code: 404 - {'error': {'message': 'The model `gpt-4` does not exist or you do not have access to it.', 'type': 'invalid_request_error', 'param': None, 'code': 'model_not_found'}}
