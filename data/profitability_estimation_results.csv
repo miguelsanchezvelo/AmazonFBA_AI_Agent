@@ -1,4 +1,4 @@
-asin,title,price,cost,fba_fees,shipping,profit,roi,score
-B0TEST001,Mock Product A,25.0,10.0,4.0,2.5,8.5,0.59,HIGH
-B0TEST002,Mock Product B,40.0,20.0,5.0,2.5,12.5,0.5,MEDIUM
-B0TEST003,Mock Product C,15.0,5.0,3.0,2.5,4.5,0.5,LOW
+asin,title,price,cost,fba_fees,shipping,profit,roi,score,Viable
+B08K3RCTVJ,Producto Mock 1,19.99,6.0,6.0,2.5,5.49,0.38,,YES
+B0161VA394,Producto Mock 2,29.99,9.0,7.5,2.5,10.99,0.58,,YES
+B09FYTG37V,Producto Mock 3,39.99,12.0,9.0,2.5,16.49,0.7,,YES
