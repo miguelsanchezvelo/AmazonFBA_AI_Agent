@@ -60,6 +60,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument('--max-products', type=int, default=10, help='Maximum number of products to process (if applicable)')
     parser.add_argument('--input', default=INPUT_CSV, help='CSV with profitability results')
     parser.add_argument('--output', default=OUTPUT_CSV, help='Where to save pricing suggestions')
+    parser.add_argument('--mock', action='store_true', help='Use mock data only')
     return parser.parse_args()
 
 
@@ -195,6 +196,7 @@ def main() -> None:
     INPUT_CSV = args.input
     OUTPUT_CSV = args.output
     auto = args.auto
+    use_mock = args.mock
 
     load_dotenv()
     api_key = os.getenv("OPENAI_API_KEY")
@@ -213,6 +215,19 @@ def main() -> None:
     if not products:
         print("No products available for pricing suggestions.")
         save_results([], OUTPUT_CSV)
+        return
+
+    if use_mock:
+        mock_pricing = [
+            {"asin": "B0MOCK001", "title": "Mock Product 1", "suggested_price": 27.99, "expected_roi": 0.65},
+            {"asin": "B0MOCK002", "title": "Mock Product 2", "suggested_price": 34.50, "expected_roi": 0.72},
+            {"asin": "B0MOCK003", "title": "Mock Product 3", "suggested_price": 42.00, "expected_roi": 0.62},
+        ]
+        with open(OUTPUT_CSV, 'w', newline='', encoding='utf-8') as f:
+            writer = csv.DictWriter(f, fieldnames=["asin", "title", "suggested_price", "expected_roi"])
+            writer.writeheader()
+            writer.writerows(mock_pricing)
+        print(f"Mock pricing suggestions saved to {OUTPUT_CSV}")
         return
 
     results: List[Dict[str, str]] = []
