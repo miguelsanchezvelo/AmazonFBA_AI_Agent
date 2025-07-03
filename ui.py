@@ -343,37 +343,43 @@ def pipeline_ui() -> None:
 
     disabled = not (st.session_state.tests_ok and st.session_state.validation_ok)
 
-    if st.button("Run All", disabled=disabled):
-        for label, script in MODULES:
-            step_name = os.path.splitext(script)[0]
-            required_inputs = fba_agent.STEP_INPUTS.get(step_name, [])
-            if all(file_has_content(p) for p in required_inputs):
-                run_step_ui(label, script, st.session_state.budget, st.session_state.dev_mode)
-            else:
-                st.toast(f"Skipping {label} - prerequisites not met.")
+    # Definir los archivos de salida de cada módulo en orden
+    output_files = [
+        ("Product Results", fba_agent.OUTPUTS["product_discovery"]),
+        ("Market Analysis", fba_agent.OUTPUTS["market_analysis"]),
+        ("Profitability", fba_agent.OUTPUTS["profitability_estimation"]),
+        ("Demand Forecast", fba_agent.OUTPUTS["demand_forecast"]),
+        ("Supplier Selection", fba_agent.OUTPUTS["supplier_selection"]),
+        ("Pricing Suggestions", fba_agent.OUTPUTS["pricing_simulator"]),
+        ("Inventory Management", fba_agent.OUTPUTS["inventory_management"]),
+    ]
 
-    for label, script in MODULES:
+    prereqs_met = True
+    for idx, (label, script) in enumerate(MODULES):
         with st.expander(label, expanded=False):
-            step_name = os.path.splitext(script)[0]
-            required_inputs = fba_agent.STEP_INPUTS.get(step_name, [])
-            prereqs_met = all(file_has_content(p) for p in required_inputs)
+            # Solo habilitar el botón si los prerequisitos están cumplidos
             is_step_disabled = disabled or not prereqs_met
-
             if st.button(label, key=f"btn_{script}", disabled=is_step_disabled):
                 run_step_ui(label, script, st.session_state.budget, st.session_state.dev_mode)
+            # Mostrar log si está en modo desarrollador
             if st.session_state.dev_mode and st.session_state.logs[label]:
                 st.text_area("Log", st.session_state.logs[label], height=150)
+            # Mostrar resultados del módulo justo después de ejecutarlo
+            # Usar el nombre amigable para buscar el archivo de salida
+            if idx < len(output_files):
+                out_title, out_path = output_files[idx]
+                if os.path.exists(out_path) and file_has_content(out_path):
+                    if label == "Run Supplier Selection":
+                        display_supplier_selection()
+                    else:
+                        display_csv(out_path, out_title)
+                else:
+                    prereqs_met = False  # Si no hay resultados, los siguientes módulos quedan deshabilitados
+            else:
+                prereqs_met = False
 
-    display_csv(fba_agent.OUTPUTS["product_discovery"], "Product Results")
-    display_csv(fba_agent.OUTPUTS["market_analysis"], "Market Analysis")
-    display_csv(fba_agent.OUTPUTS["profitability_estimation"], "Profitability")
-    display_csv(fba_agent.OUTPUTS["demand_forecast"], "Demand Forecast")
-    display_supplier_selection()
-    display_csv(fba_agent.OUTPUTS["pricing_simulator"], "Pricing Suggestions")
-    display_csv(fba_agent.OUTPUTS["inventory_management"], "Inventory Management")
-
+    # Mostrar mensajes de proveedores y resumen al final
     show_messages(fba_agent.OUTPUTS["supplier_contact_generator"])
-
     st.header("Summary")
     summary_screen()
 
