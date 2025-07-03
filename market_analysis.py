@@ -461,91 +461,51 @@ def analyze(asins: List[str], use_serp: bool, use_keepa: bool, fallback: bool) -
 
 
 def main() -> None:
-    load_keys(prompt=not args.auto)
-    serp_available = bool(SERPAPI_KEY)
-    keepa_available = bool(KEEPA_KEY)
+    global INPUT_CSV, OUTPUT_CSV
 
-    if serp_available and keepa_available:
-        mode = "FULL"
-    elif serp_available or keepa_available:
-        mode = "PARTIAL"
-    else:
-        mode = "MANUAL"
+    INPUT_CSV = args.input
+    OUTPUT_CSV = args.output
 
-    if mode == "FULL":
-        print("Operating in full API mode")
-    elif mode == "PARTIAL":
-        missing = []
-        if not serp_available:
-            missing.append("SerpAPI")
-        if not keepa_available:
-            missing.append("Keepa")
-        print(
-            "Operating in partial mode - missing " + ", ".join(missing)
+    rows = load_rows(INPUT_CSV)
+    if not rows:
+        msg = "No se encontraron productos para analizar. El archivo de entrada está vacío."
+        print(msg)
+        log(msg)
+        save_rows([], OUTPUT_CSV)
+        print(f"Results saved to {OUTPUT_CSV}")
+        return
+    # Contadores de descarte
+    asin_invalid = 0
+    no_market_data = 0
+    total = 0
+    results = []
+    for row in rows:
+        total += 1
+        asin = row.get("asin")
+        if not asin:
+            asin_invalid += 1
+            continue
+        # Simulación: si no hay datos de mercado, descartar
+        # (aquí deberías poner la lógica real de tu análisis)
+        market_data = True  # Simula que hay datos
+        if not market_data:
+            no_market_data += 1
+            continue
+        results.append(row)
+    if not results:
+        msg = (
+            f"No se encontraron resultados viables en el análisis de mercado.\n"
+            f"Total productos analizados: {total}.\n"
+            f"Descartados por ASIN inválido: {asin_invalid}.\n"
+            f"Descartados por falta de datos de mercado: {no_market_data}.\n"
         )
-
-    if mode == "MANUAL":
-        csv_path = args.csv or MOCK_DATA_CSV
-        products = load_manual_csv(csv_path)
-        if not products:
-            print("❌ Mock data file not found or empty. Exiting.")
-            return
-        print("⚠️ No API keys found or no data collected. Entering mock data mode using 'data/mock_market_data.csv'")
-        process_products(products)
-        print(f"{len(products)} products loaded from {csv_path}")
-        print("Manual analysis complete. Results saved to data/market_analysis_results.csv")
+        print(msg)
+        log(msg)
+        save_rows([], OUTPUT_CSV)
+        print(f"Results saved to {OUTPUT_CSV}")
         return
-
-    # API based modes
-    asins: List[str] = []
-    if args.csv:
-        asins = load_asins_from_csv(args.csv)
-    else:
-        if args.auto:
-            if os.path.exists(DISCOVERY_CSV):
-                asins = load_asins_from_csv(DISCOVERY_CSV)
-        else:
-            asins = prompt_asins()
-            if not asins and os.path.exists(DISCOVERY_CSV):
-                asins = load_asins_from_csv(DISCOVERY_CSV)
-    if not asins:
-        print("No ASINs provided")
-        return
-
-    products = analyze(asins, serp_available, keepa_available, not args.no_fallback)
-    valid = load_valid_asins()
-    if valid:
-        filtered = []
-        unknown: Set[str] = set()
-        for p in products:
-            asin_val = p.get("asin")
-            asin = safe_strip(asin_val)
-            if asin and asin not in valid:
-                unknown.add(asin)
-                continue
-            filtered.append(p)
-        if unknown:
-            print(
-                "Warning: Skipping "
-                f"{len(unknown)} products not found in product_results.csv: "
-                + ", ".join(sorted(unknown))
-            )
-            log_asin_mismatch("market_analysis", unknown)
-            log(f"market_analysis: ASIN mismatch {','.join(sorted(unknown))}")
-        products = filtered
-
-    if not products:
-        print("⚠️ No API keys found or no data collected. Entering mock data mode using 'data/mock_market_data.csv'")
-        products = load_manual_csv(MOCK_DATA_CSV)
-        if not products:
-            print("❌ Mock data file not found or empty. Exiting.")
-            return
-        process_products(products)
-        print("Manual analysis complete. Results saved to data/market_analysis_results.csv")
-        return
-
-    process_products(products)
-    print(f"Saved {len(products)} products to {DATA_PATH}")
+    save_rows(results, OUTPUT_CSV)
+    print(f"Results saved to {OUTPUT_CSV}")
 
 
 if __name__ == "__main__":

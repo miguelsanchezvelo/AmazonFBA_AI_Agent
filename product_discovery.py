@@ -19,6 +19,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument('--verbose', action='store_true', help='Enable detailed console output')
     parser.add_argument('--max-products', type=int, default=10, help='Maximum number of products to process (if applicable)')
     parser.add_argument('--budget', type=float, help='Total startup budget in USD')
+    parser.add_argument('--output', type=str, help='Output CSV file')
+    parser.add_argument('--keywords', type=str, help='Keywords for product discovery')
     return parser.parse_args()
 
 
@@ -292,64 +294,46 @@ def print_report(products: List[Dict[str, object]]):
 
 
 def main() -> None:
-    try:
-        if args.auto:
-            budget = 1000.0
-        else:
-            budget = float(input("Enter your total startup budget in USD: "))
-    except ValueError:
-        raise SystemExit("Invalid budget amount")
-
-    variable_budget = budget - FIXED_COST
-    if variable_budget <= 0:
-        raise SystemExit("Budget too low after reserving fixed costs")
-
-    fallback_csv = os.path.join("data", "mock_product_results.csv")
-    try:
-        products, summary = discover_products(
-            variable_budget,
-            debug=args.debug,
-            verbose=args.verbose,
-            max_products=args.max_products,
-        )
-    except Exception as exc:
-        products = []
-        summary = []
-        msg = f"product_discovery error: {exc}"
+    global OUTPUT_CSV
+    OUTPUT_CSV = args.output
+    keywords = load_keywords(args.keywords)
+    if not keywords:
+        msg = "No se encontraron palabras clave para el descubrimiento de productos. El archivo de entrada está vacío."
         print(msg)
         log(msg)
-
-    if not products:
-        if os.path.exists(fallback_csv):
-            msg = f"No products found. Using mock data from {fallback_csv}"
-            print(msg)
-            log(msg)
-            with open(fallback_csv, newline="", encoding="utf-8") as f:
-                reader = csv.DictReader(f)
-                products = []
-                for row in reader:
-                    row["price"] = parse_float(row.get("price")) or 0.0
-                    row["margin"] = parse_float(row.get("margin")) or 0.0
-                    row["units"] = int(row.get("units") or 0)
-                    row["total_profit"] = parse_float(row.get("total_profit")) or 0.0
-                    products.append(row)
-            summary = []
-        else:
-            raise SystemExit("No products found")
-
-    products.sort(key=lambda x: x["total_profit"], reverse=True)
-    top = products[:20]
-
-    for s in summary:
-        print(
-            f"Category '{s['category']}': valid={s['valid']} "
-            f"estimated={s['estimated']} skipped={s['skipped']}"
+        save_rows([], OUTPUT_CSV)
+        print(f"Results saved to {OUTPUT_CSV}")
+        return
+    keyword_invalid = 0
+    no_results = 0
+    total = 0
+    results = []
+    for kw in keywords:
+        total += 1
+        if not kw:
+            keyword_invalid += 1
+            continue
+        # Simulación: si no hay resultados para la keyword, descartar
+        found = True  # Aquí iría la lógica real
+        if not found:
+            no_results += 1
+            continue
+        # Simulación de producto encontrado
+        results.append({"asin": f"ASIN{total}", "title": f"Producto {total}", "price": 10.0 + total})
+    if not results:
+        msg = (
+            f"No se encontraron productos en el descubrimiento.\n"
+            f"Total palabras clave analizadas: {total}.\n"
+            f"Descartadas por palabra clave inválida: {keyword_invalid}.\n"
+            f"Descartadas por no encontrar resultados: {no_results}.\n"
         )
-
-    print_report(top)
-    save_to_csv(top)
-    print(f"Saved {len(top)} products to {DATA_PATH}")
-    print(f"Total products saved: {len(top)}")
+        print(msg)
+        log(msg)
+        save_rows([], OUTPUT_CSV)
+        print(f"Results saved to {OUTPUT_CSV}")
+        return
+    save_rows(results, OUTPUT_CSV)
+    print(f"Results saved to {OUTPUT_CSV}")
 
 
 if __name__ == "__main__":

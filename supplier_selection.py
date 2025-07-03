@@ -223,19 +223,28 @@ def join_data(profit_rows: List[Dict[str, str]], demand_rows: List[Dict[str, str
     combined: List[Dict[str, object]] = []
     unknown: Set[str] = set()
     unprofitable: List[dict] = []
+    roi_discards = 0
+    demand_discards = 0
+    asin_discards = 0
+    total = 0
     for p in profit_rows:
+        total += 1
         asin = p.get("asin") or ""
         roi_val = parse_float(p.get("roi"))
         if roi_val is not None and roi_val <= 0:
             unprofitable.append({"asin": asin, "roi": roi_val})
+            roi_discards += 1
             continue
         if not is_viable(p):
+            demand_discards += 1
             continue
         if valid and asin and asin not in valid:
             unknown.add(asin)
+            asin_discards += 1
             continue
         d = demand_map.get(asin)
         if not d:
+            demand_discards += 1
             continue
         combined.append({**p, **d})
     if unknown:
@@ -247,9 +256,13 @@ def join_data(profit_rows: List[Dict[str, str]], demand_rows: List[Dict[str, str
         log_asin_mismatch("supplier_selection", unknown)
         log(f"supplier_selection: ASIN mismatch {','.join(sorted(unknown))}")
         if not combined:
-            msg = ("No viable products for supplier selection. "
-                   "Esto puede deberse a que ningún producto cumple los filtros de ROI/demanda, "
-                   "los archivos de entrada están vacíos o los ASINs no coinciden.")
+            msg = (
+                f"No se encontraron productos viables para proveedores.\n"
+                f"Total productos analizados: {total}.\n"
+                f"Descartados por ROI <= 0: {roi_discards}.\n"
+                f"Descartados por demanda insuficiente o no encontrada: {demand_discards}.\n"
+                f"Descartados por ASIN no encontrado: {asin_discards}.\n"
+            )
             print(msg)
             log(msg)
             return []
@@ -258,6 +271,17 @@ def join_data(profit_rows: List[Dict[str, str]], demand_rows: List[Dict[str, str
             f"Skipping {len(unprofitable)} unprofitable products (ROI ≤ 0). See {UNPROFITABLE_LOG}"
         )
         log_unprofitable("supplier_selection", unprofitable)
+    if not combined:
+        msg = (
+            f"No se encontraron productos viables para proveedores.\n"
+            f"Total productos analizados: {total}.\n"
+            f"Descartados por ROI <= 0: {roi_discards}.\n"
+            f"Descartados por demanda insuficiente o no encontrada: {demand_discards}.\n"
+            f"Descartados por ASIN no encontrado: {asin_discards}.\n"
+        )
+        print(msg)
+        log(msg)
+        return []
     return combined
 
 

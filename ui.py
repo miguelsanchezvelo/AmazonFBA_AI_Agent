@@ -405,9 +405,38 @@ def parse_cli() -> argparse.Namespace:
 
 def display_supplier_selection():
     path = fba_agent.OUTPUTS["supplier_selection"]
+    log_path = "log.txt"
     if not file_has_content(path):
-        st.warning("No se encontraron proveedores para los productos seleccionados. Esto puede deberse a que:")
-        st.markdown("- Ningún producto cumple los filtros de rentabilidad o demanda.\n- Los archivos de entrada están vacíos o los ASINs no coinciden.\n- Todos los productos tienen ROI <= 0 o demanda baja.\n- Hay un error en la generación de datos previos.")
+        # Buscar el último mensaje relevante en el log
+        msg = None
+        if os.path.exists(log_path):
+            with open(log_path, "r", encoding="utf-8") as f:
+                lines = f.readlines()
+                for line in reversed(lines):
+                    if (
+                        f"No se encontraron productos viables para proveedores." in line or
+                        "No se encontraron productos para analizar." in line or
+                        "No se encontraron resultados viables en el análisis de mercado." in line or
+                        "No se encontraron productos viables en la estimación de rentabilidad." in line or
+                        "No se encontraron resultados viables en la estimación de demanda." in line or
+                        "No se encontraron productos en el descubrimiento." in line
+                    ):
+                        msg_lines = [line.strip()]
+                        idx = lines.index(line)
+                        for extra in lines[idx+1:idx+5]:
+                            if (
+                                extra.strip().startswith("Total ") or
+                                extra.strip().startswith("Descartad")
+                            ):
+                                msg_lines.append(extra.strip())
+                            else:
+                                break
+                        msg = "\n".join(msg_lines)
+                        break
+        if msg:
+            st.error(msg)
+        else:
+            st.warning("No se encontraron proveedores para los productos seleccionados. Consulta el log para más detalles.")
         return
     df = pd.read_csv(path)
     if df.empty:

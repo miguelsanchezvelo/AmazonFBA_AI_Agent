@@ -140,6 +140,7 @@ def estimate_profit(rows, supplier_costs):
             f"Skipping {len(unprofitable)} unprofitable products (ROI ≤ 0). See {UNPROFITABLE_LOG}"
         )
         log_unprofitable("profitability_estimation", unprofitable)
+        log(f"profitability_estimation: ASIN mismatch {','.join(sorted(set(p['asin'] for p in unprofitable)))}")
     return results
 
 
@@ -218,9 +219,58 @@ def main() -> None:
 
     market_data = load_market_data(INPUT_CSV)
     if not market_data:
+        msg = "No se encontraron productos para estimar rentabilidad. El archivo de entrada está vacío."
+        print(msg)
+        log(msg)
+        save_results([], OUTPUT_CSV)
+        print(f"Results saved to {OUTPUT_CSV}")
         return
     supplier_costs = load_supplier_costs(SUPPLIER_CSV)
-    results = estimate_profit(market_data, supplier_costs)
+    # Contadores de descarte
+    price_invalid = 0
+    roi_discards = 0
+    total = 0
+    results = []
+    for row in market_data:
+        total += 1
+        price = parse_float(row.get("price"))
+        if price is None:
+            price_invalid += 1
+            continue
+        asin = row.get("asin") or ""
+        cost = supplier_costs.get(asin, round(price * 0.3, 2))
+        fba_fees = round(price * 0.15 + 3.0, 2)
+        profit = round(price - cost - SHIPPING_COST - fba_fees, 2)
+        total_cost = cost + SHIPPING_COST + fba_fees
+        roi = round(profit / total_cost, 2) if total_cost else 0.0
+        viable = "YES" if roi > 0 else "NO"
+        if roi <= 0:
+            roi_discards += 1
+            continue
+        results.append({
+            "asin": asin,
+            "title": row.get("title", ""),
+            "price": round(price, 2),
+            "cost": cost,
+            "fba_fees": fba_fees,
+            "shipping": SHIPPING_COST,
+            "profit": profit,
+            "roi": roi,
+            "score": row.get("score", ""),
+            "Viable": viable,
+        })
+    if not results:
+        msg = (
+            f"No se encontraron productos viables en la estimación de rentabilidad.\n"
+            f"Total productos analizados: {total}.\n"
+            f"Descartados por precio inválido: {price_invalid}.\n"
+            f"Descartados por ROI <= 0: {roi_discards}.\n"
+        )
+        print(msg)
+        log(msg)
+        save_results([], OUTPUT_CSV)
+        print(f"Results saved to {OUTPUT_CSV}")
+        return
     save_results(results, OUTPUT_CSV)
     print_top_products(results, 5)
     print(f"Results saved to {OUTPUT_CSV}")
