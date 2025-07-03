@@ -65,6 +65,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument('--supplier-costs', default=SUPPLIER_CSV, help='CSV file with supplier costs')
     parser.add_argument('--output', default=OUTPUT_CSV, help='Where to save profitability results')
     parser.add_argument('--real', action='store_true', help='Usar datos reales (por defecto: mock)')
+    parser.add_argument('--mock', action='store_true', help=argparse.SUPPRESS)
     return parser.parse_args()
 
 
@@ -176,9 +177,11 @@ def load_market_data(path: str):
     return rows
 
 
-def save_results(rows, path: str, fieldnames: List[str]):
+def save_results(rows, path, fieldnames):
+    if not rows:
+        return
     os.makedirs(os.path.dirname(path), exist_ok=True)
-    with open(path, "w", newline="", encoding="utf-8") as f:
+    with open(path, 'w', newline='', encoding='utf-8') as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()
         writer.writerows(rows)
@@ -206,11 +209,13 @@ def main() -> None:
     parser.add_argument('--input', default='data/market_analysis_results.csv', help='Input CSV file')
     parser.add_argument('--output', default='data/profitability_estimation_results.csv', help='Output CSV file')
     parser.add_argument('--real', action='store_true', help='Usar datos reales (por defecto: mock)')
+    parser.add_argument('--mock', action='store_true', help=argparse.SUPPRESS)
     args = parser.parse_args()
     INPUT_CSV = args.input
     OUTPUT_CSV = args.output
     use_mock = not args.real
     if use_mock:
+        print('DEBUG: Entrando en bloque use_mock')
         fieldnames = ["asin", "title", "price", "cost", "fba_fees", "shipping", "profit", "roi", "score", "Viable"]
         mock_profit = [
             {
@@ -226,8 +231,10 @@ def main() -> None:
                 "Viable": "YES"
             } for row in get_mock_asins()
         ]
+        print(f'DEBUG: mock_profit = {mock_profit}')
         save_results(mock_profit, OUTPUT_CSV, fieldnames)
         print(f"[MOCK] Saved {len(mock_profit)} profitability rows to {OUTPUT_CSV}")
+        print('DEBUG: Salida del bloque use_mock')
         return
     INPUT_CSV = args.input
     SUPPLIER_CSV = args.supplier_costs

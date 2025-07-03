@@ -130,9 +130,11 @@ def load_rows(path: str) -> List[Dict[str, str]]:
         return list(csv.DictReader(f))
 
 
-def save_csv(rows: List[Dict[str, object]], path: str, fieldnames: List[str]):
+def save_rows(rows, path, fieldnames):
+    if not rows:
+        return
     os.makedirs(os.path.dirname(path), exist_ok=True)
-    with open(path, "w", newline="", encoding="utf-8") as f:
+    with open(path, 'w', newline='', encoding='utf-8') as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()
         writer.writerows(rows)
@@ -212,9 +214,9 @@ def ensure_mock_data():
             return True
 
     if _empty(PROFITABILITY_CSV):
-        save_csv(MOCK_PROFIT_ROWS, PROFITABILITY_CSV, list(MOCK_PROFIT_ROWS[0].keys()))
+        save_rows(MOCK_PROFIT_ROWS, PROFITABILITY_CSV, list(MOCK_PROFIT_ROWS[0].keys()))
     if _empty(DEMAND_CSV):
-        save_csv(MOCK_DEMAND_ROWS, DEMAND_CSV, list(MOCK_DEMAND_ROWS[0].keys()))
+        save_rows(MOCK_DEMAND_ROWS, DEMAND_CSV, list(MOCK_DEMAND_ROWS[0].keys()))
 
 
 # Core logic ------------------------------------------------------------
@@ -371,6 +373,7 @@ def main() -> None:
     args = parser.parse_args()
     OUTPUT_CSV = args.output
     use_mock = not args.real
+    print('DEBUG: Entrando en bloque use_mock')
     if use_mock:
         fieldnames = ["asin", "title", "price", "cost", "roi", "temporal_roi", "demand", "units_to_order", "total_cost", "estimated_profit"]
         mock_supplier = [
@@ -387,8 +390,10 @@ def main() -> None:
                 "estimated_profit": (row["price"] - row["cost"]) * 100
             } for row in get_mock_asins()
         ]
-        save_csv(mock_supplier, OUTPUT_CSV, fieldnames)
+        print(f'DEBUG: mock_supplier = {mock_supplier}')
+        save_rows(mock_supplier, OUTPUT_CSV, fieldnames)
         print(f"[MOCK] Saved {len(mock_supplier)} supplier selection rows to {OUTPUT_CSV}")
+        print('DEBUG: Salida del bloque use_mock')
         return
     ensure_mock_data()
     profit_rows = load_rows(PROFITABILITY_CSV)
@@ -418,7 +423,7 @@ def main() -> None:
             budget = 1000.0
     results, total_cost, total_profit, overall_roi = allocate_budget(combined, budget)
     print_table(results, (total_cost, total_profit, overall_roi))
-    save_csv(
+    save_rows(
         results,
         OUTPUT_CSV,
         [

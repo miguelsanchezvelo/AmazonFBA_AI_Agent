@@ -9,7 +9,6 @@ from typing import List, Dict, Optional, Tuple, Set
 import sys
 import io
 from mock_data import get_mock_asins
-from utils import save_rows  # o definir save_rows localmente si no existe utils
 
 try:
     import requests
@@ -481,6 +480,18 @@ def main() -> None:
         print(f"[MOCK] Saved {len(mock_market)} market analysis rows to {OUTPUT_CSV}")
         return
     # ... resto de la lógica real ...
+
+
+def save_rows(rows, path, fieldnames=None):
+    if not rows:
+        return
+    if fieldnames is None:
+        fieldnames = list(rows[0].keys())
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, 'w', newline='', encoding='utf-8') as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(rows)
 
 
 if __name__ == "__main__":

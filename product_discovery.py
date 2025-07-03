@@ -9,7 +9,6 @@ import time
 import sys
 import io
 from mock_data import get_mock_asins
-from utils import save_rows  # o definir save_rows localmente si no existe utils
 
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 sys.stdin = io.TextIOWrapper(sys.stdin.buffer, encoding='utf-8')
@@ -262,24 +261,16 @@ def discover_products(
     return results, summary
 
 
-def save_to_csv(products: List[Dict[str, object]]):
-    os.makedirs(os.path.dirname(DATA_PATH), exist_ok=True)
-    with open(DATA_PATH, "w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(
-            f,
-            fieldnames=[
-                "title",
-                "asin",
-                "estimated_asin",
-                "price",
-                "margin",
-                "units",
-                "total_profit",
-            ],
-        )
+def save_rows(rows, path, fieldnames=None):
+    if not rows:
+        return
+    if fieldnames is None:
+        fieldnames = list(rows[0].keys())
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, 'w', newline='', encoding='utf-8') as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()
-        for row in products:
-            writer.writerow(row)
+        writer.writerows(rows)
 
 
 def print_report(products: List[Dict[str, object]]):
