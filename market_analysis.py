@@ -28,6 +28,8 @@ load_dotenv()
 
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 
+def safe_strip(val):
+    return val.strip() if isinstance(val, str) else ''
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Analyze Amazon market data")
@@ -281,7 +283,7 @@ def load_asins_from_csv(path: str) -> List[str]:
     with open(path, newline="", encoding="utf-8") as f:
         reader = csv.DictReader(f)
         for row in reader:
-            asin = (row.get("asin") or "").strip()
+            asin = safe_strip(row.get("asin"))
             if asin and is_valid_asin(asin):
                 asins.append(asin)
     return asins
@@ -291,10 +293,11 @@ def prompt_asins() -> List[str]:
     """Prompt the user for ASIN values."""
     raw = input(
         "Enter ASINs separated by spaces (leave blank to load from discovery results): "
-    ).strip()
+    )
+    raw = safe_strip(raw)
     if not raw:
         return []
-    return [a.strip().upper() for a in raw.split() if is_valid_asin(a)]
+    return [(a or '').strip().upper() for a in raw.split() if is_valid_asin(a)]
 
 
 def load_manual_csv(path: str) -> List[Dict[str, object]]:
@@ -306,22 +309,22 @@ def load_manual_csv(path: str) -> List[Dict[str, object]]:
     with open(path, newline="", encoding="utf-8") as f:
         reader = csv.DictReader(f)
         for row in reader:
-            asin = (row.get("asin") or "").strip()
+            asin = safe_strip(row.get("asin"))
             if asin and not is_valid_asin(asin):
                 # Ignore invalid ASINs in mock data
                 continue
             product = {
                 "asin": asin,
-                "title": row.get("title") or "",
-                "price": parse_float(str(row.get("price"))),
-                "rating": parse_float(str(row.get("rating"))),
-                "reviews": parse_float(str(row.get("reviews"))),
-                "bsr": row.get("bsr"),
-                "link": row.get("link") or "",
-                "source": row.get("source") or "manual",
+                "title": safe_strip(row.get("title")),
+                "price": parse_float(safe_strip(str(row.get("price")))),
+                "rating": parse_float(safe_strip(str(row.get("rating")))),
+                "reviews": parse_float(safe_strip(str(row.get("reviews")))),
+                "bsr": safe_strip(row.get("bsr")),
+                "link": safe_strip(row.get("link")) or "",
+                "source": safe_strip(row.get("source")) or "manual",
                 "estimated": True,
             }
-            score = parse_float(str(row.get("score")))
+            score = parse_float(safe_strip(str(row.get("score"))))
             if score is not None:
                 product["score"] = score
             products.append(product)
@@ -338,15 +341,19 @@ def manual_input(asins: Optional[List[str]] = None) -> List[Dict[str, object]]:
             asin = asins[index]
             print(f"Provide data for ASIN {asin}")
         else:
-            asin = input("ASIN: ").strip()
+            asin = input("ASIN: ")
+            asin = safe_strip(asin)
             if not asin:
                 break
-        title = input("Title: ").strip()
+        title = input("Title: ")
+        title = safe_strip(title)
         price = parse_float(input("Price: "))
         rating = parse_float(input("Rating: "))
         reviews = parse_float(input("Reviews: "))
-        bsr = input("Best Seller Rank: ").strip() or None
-        link = input("Link: ").strip()
+        bsr = input("Best Seller Rank: ")
+        bsr = safe_strip(bsr) or None
+        link = input("Link: ")
+        link = safe_strip(link)
         products.append(
             {
                 "asin": asin,
@@ -510,7 +517,8 @@ def main() -> None:
         filtered = []
         unknown: Set[str] = set()
         for p in products:
-            asin = (p.get("asin") or "").strip()
+            asin_val = p.get("asin")
+            asin = safe_strip(asin_val)
             if asin and asin not in valid:
                 unknown.add(asin)
                 continue
