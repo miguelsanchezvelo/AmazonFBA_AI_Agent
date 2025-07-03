@@ -1,3 +1,9 @@
 2025-07-03 17:21:47 demand_forecast: ASIN mismatch B0MOCK001
 2025-07-03 17:21:48 supplier_selection: ASIN mismatch B0TEST001,B0TEST002,B0TEST003
 2025-07-03 17:22:05 pricing_simulator: ASIN mismatch B0TEST001,B0TEST002,B0TEST003
+2025-07-03 17:32:17 pricing_simulator: downgrading model to gpt-3.5-turbo
+2025-07-03 17:32:22 pricing_simulator: using fallback price for B09FYTG37V: Error code: 429 - {'error': {'message': 'You exceeded your current quota, please check your plan and billing details. For more information on this error, read the docs: https://platform.openai.com/docs/guides/error-codes/api-errors.', 'type': 'insufficient_quota', 'param': None, 'code': 'insufficient_quota'}}
+2025-07-03 17:32:22 pricing_simulator: downgrading model to gpt-3.5-turbo
+2025-07-03 17:32:25 pricing_simulator: using fallback price for B0161VA394: Error code: 429 - {'error': {'message': 'You exceeded your current quota, please check your plan and billing details. For more information on this error, read the docs: https://platform.openai.com/docs/guides/error-codes/api-errors.', 'type': 'insufficient_quota', 'param': None, 'code': 'insufficient_quota'}}
+2025-07-03 17:32:26 pricing_simulator: downgrading model to gpt-3.5-turbo
+2025-07-03 17:32:28 pricing_simulator: using fallback price for B08K3RCTVJ: Error code: 429 - {'error': {'message': 'You exceeded your current quota, please check your plan and billing details. For more information on this error, read the docs: https://platform.openai.com/docs/guides/error-codes/api-errors.', 'type': 'insufficient_quota', 'param': None, 'code': 'insufficient_quota'}}
