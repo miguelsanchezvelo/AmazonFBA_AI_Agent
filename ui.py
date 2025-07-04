@@ -313,33 +313,29 @@ def pipeline_ui() -> None:
     )
     st.session_state.budget = budget
 
-    if st.button("Run Tests"):
-        with st.spinner("Running tests..."):
-            out, code = run_test_all()
-        with st.expander("Test Output", expanded=code != 0):
-            st.code(out)
-        st.session_state.tests_ok = code == 0
-        if st.session_state.tests_ok:
-            st.success("Tests passed")
-        else:
-            st.error("Tests failed. Check output for details.")
+    # Mostrar Run Tests y Validate Pipeline solo en modo desarrollador
+    if dev_mode:
+        if st.button("Run Tests"):
+            with st.spinner("Running tests..."):
+                out, code = run_test_all()
+            with st.expander("Test Output", expanded=code != 0):
+                st.code(out)
+            st.session_state.tests_ok = code == 0
+            if st.session_state.tests_ok:
+                st.success("Tests passed")
+            else:
+                st.error("Tests failed. Check output for details.")
 
-    if st.button("Validate Pipeline"):
-        with st.spinner("Validating pipeline..."):
-            vout, vcode = run_validate_all()
-        with st.expander("Validation Output", expanded=vcode != 0):
-            st.code(vout)
-        st.session_state.validation_ok = vcode == 0
-        if st.session_state.validation_ok:
-            st.success("Validation passed")
-        else:
-            st.error("Validation reported issues. Check output for details.")
-
-    if st.button("Prepare Environment"):
-        with st.spinner("Installing dependencies..."):
-            pip_log = run_prepare_environment()
-        with st.expander("Environment Setup Log", expanded=True):
-            st.code(pip_log)
+        if st.button("Validate Pipeline"):
+            with st.spinner("Validating pipeline..."):
+                vout, vcode = run_validate_all()
+            with st.expander("Validation Output", expanded=vcode != 0):
+                st.code(vout)
+            st.session_state.validation_ok = vcode == 0
+            if st.session_state.validation_ok:
+                st.success("Validation passed")
+            else:
+                st.error("Validation reported issues. Check output for details.")
 
     st.divider()
 
@@ -470,6 +466,12 @@ def run_step_ui(label: str, script: str, budget: float, dev_mode: bool) -> None:
         missing = [f for f in data_files if not os.path.exists(f)]
         if missing:
             subprocess.run(['python', 'mock_data.py'], encoding='utf-8')
+    # --- NUEVO: Instalar requirements solo si falta algo ---
+    if not check_requirements_installed():
+        with st.spinner("Instalando dependencias..."):
+            pip_log = run_prepare_environment()
+        with st.expander("Environment Setup Log", expanded=True):
+            st.code(pip_log)
     # Ejecutar el script con el flag --mock si corresponde
     cmd = ['python', script]
     if dev_mode:
@@ -550,6 +552,32 @@ def display_supplier_selection():
     st.metric("Coste total", f"${total_cost:,.2f}")
     st.metric("Beneficio estimado", f"${total_profit:,.2f}")
     st.dataframe(df)
+
+
+def check_requirements_installed() -> bool:
+    """Devuelve True si todos los paquetes de requirements.txt están instalados, False si falta alguno."""
+    import importlib
+    import pkg_resources
+    import sys
+    req_path = os.path.join(ROOT_DIR, "requirements.txt")
+    if not os.path.exists(req_path):
+        return True  # Si no hay requirements, asumimos que está bien
+    with open(req_path) as f:
+        lines = [l.strip() for l in f if l.strip() and not l.startswith('#')]
+    pkgs = []
+    for l in lines:
+        if '==' in l:
+            pkgs.append(l.split('==')[0])
+        elif '>=' in l:
+            pkgs.append(l.split('>=')[0])
+        elif l:
+            pkgs.append(l.split()[0])
+    for pkg in pkgs:
+        try:
+            importlib.import_module(pkg)
+        except Exception:
+            return False
+    return True
 
 
 if __name__ == "__main__":

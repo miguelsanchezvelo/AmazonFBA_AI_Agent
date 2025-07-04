@@ -243,6 +243,7 @@ def discover_products(
                 "margin": margin,
                 "units": units,
                 "total_profit": total_profit,
+                "selection_reason": "Meets all selection criteria",
             }
 
             results.append(entry)

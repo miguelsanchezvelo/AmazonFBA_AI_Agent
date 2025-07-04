@@ -393,10 +393,12 @@ def save_results(products: List[Dict[str, object]]):
                 "source",
                 "estimated",
                 "potential",
+                "selection_reason",
             ],
         )
         writer.writeheader()
         for row in products:
+            row["selection_reason"] = "Passed market analysis filters"
             writer.writerow(row)
 
 
@@ -459,6 +461,7 @@ def analyze(asins: List[str], use_serp: bool, use_keepa: bool, fallback: bool) -
             print(f"No data found for {asin}")
             continue
         product["potential"] = evaluate_potential(product)
+        product["selection_reason"] = "Passed market analysis filters"
         results.append(product)
     return results
 
