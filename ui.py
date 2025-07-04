@@ -37,6 +37,54 @@ MODULES: List[Tuple[str, str]] = [
     ("Manage Inventory", "inventory_management.py"),
 ]
 
+# --- NUEVO: Diccionario de traducción para mensajes clave ---
+TRANSLATIONS = {
+    'en': {
+        'run_all': 'Run All',
+        'run_tests': 'Run Tests',
+        'validate_pipeline': 'Validate Pipeline',
+        'reset_pipeline': 'Reset Pipeline (delete all generated data)',
+        'resetting_pipeline': 'Resetting pipeline...',
+        'pipeline_reset': 'Pipeline reset. All generated data has been deleted. Please rerun the steps.',
+        'results_file_exists': 'The results file {output_path} already exists. The data may be mock or outdated. If you want to start fresh, use the button below to reset the pipeline.',
+        'see_roi_chart': 'To see the ROI per product chart, install plotly: pip install plotly',
+        'supplier_selection_empty': 'Supplier selection results are empty.',
+        'run_supplier_selection': 'Run Supplier Selection to generate summary data.',
+        'failed_to_read': 'Failed to read {sel_path}: {exc}',
+        'tests_failed': 'Tests failed. Check output for details.',
+        'validation_failed': 'Validation reported issues. Check output for details.',
+        'pipeline_completed': 'Pipeline completed. Refresh to see new results.',
+        'step_success': '✅ {label} completed successfully',
+        'step_failed': '❌ {label} failed',
+        'installing_deps': 'Installing dependencies...',
+        'env_setup_log': 'Environment Setup Log',
+    },
+    'es': {
+        'run_all': 'Ejecutar Todo',
+        'run_tests': 'Ejecutar Tests',
+        'validate_pipeline': 'Validar Pipeline',
+        'reset_pipeline': 'Reiniciar Pipeline (eliminar todos los datos generados)',
+        'resetting_pipeline': 'Reiniciando pipeline...',
+        'pipeline_reset': 'Pipeline reiniciado. Todos los datos generados han sido eliminados. Por favor, ejecuta los pasos de nuevo.',
+        'results_file_exists': 'El archivo de resultados {output_path} ya existe. Los datos pueden ser mock o antiguos. Si quieres empezar limpio, usa el botón de abajo para reiniciar la pipeline.',
+        'see_roi_chart': 'Para ver la gráfica de ROI por producto, instala plotly: pip install plotly',
+        'supplier_selection_empty': 'Los resultados de selección de proveedores están vacíos.',
+        'run_supplier_selection': 'Ejecuta la selección de proveedores para generar datos de resumen.',
+        'failed_to_read': 'No se pudo leer {sel_path}: {exc}',
+        'tests_failed': 'Los tests han fallado. Consulta el resultado para más detalles.',
+        'validation_failed': 'La validación ha reportado problemas. Consulta el resultado para más detalles.',
+        'pipeline_completed': 'Pipeline completada. Refresca para ver los nuevos resultados.',
+        'step_success': '✅ {label} completado correctamente',
+        'step_failed': '❌ {label} falló',
+        'installing_deps': 'Instalando dependencias...',
+        'env_setup_log': 'Log de instalación del entorno',
+    }
+}
+
+def t(key, **kwargs):
+    lang = st.session_state.get('lang', 'en')
+    msg = TRANSLATIONS.get(lang, TRANSLATIONS['en']).get(key, key)
+    return msg.format(**kwargs)
 
 def run_module(script_name: str, budget: float = 0.0) -> Tuple[str, str, int, str]:
     """Run a module and return (stdout, stderr, exit_code, detailed_log)."""
@@ -256,23 +304,26 @@ def show_messages(dir_path: str) -> None:
 def summary_screen() -> None:
     sel_path = fba_agent.OUTPUTS["supplier_selection"]
     if not os.path.exists(sel_path):
-        st.info("Run Supplier Selection to generate summary data.")
+        st.info(t('run_supplier_selection'))
         return
     try:
         df = pd.read_csv(sel_path)
     except Exception as exc:
-        st.warning(f"Failed to read {sel_path}: {exc}")
+        st.warning(t('failed_to_read', sel_path=sel_path, exc=exc))
         return
     if df.empty:
-        st.warning("Supplier selection results are empty")
+        st.warning(t('supplier_selection_empty'))
         return
     total_profit = df.get("estimated_profit", pd.Series(dtype=float)).sum()
     st.metric("Total Projected Profit", f"${total_profit:,.2f}")
-    if "roi" in df.columns and "asin" in df.columns:
+    # --- NUEVO: Comprobar si plotly está instalado antes de graficar ---
+    try:
         import plotly.express as px
-
-        fig = px.bar(df, x="asin", y="roi", title="ROI per Product")
-        st.plotly_chart(fig, use_container_width=True)
+        if "roi" in df.columns and "asin" in df.columns:
+            fig = px.bar(df, x="asin", y="roi", title="ROI per Product")
+            st.plotly_chart(fig, use_container_width=True)
+    except ImportError:
+        st.info(t('see_roi_chart'))
     st.dataframe(df)
 
 
@@ -294,6 +345,11 @@ def run_prepare_environment() -> str:
 
 def pipeline_ui() -> None:
     st.title("Amazon FBA AI Agent")
+    # --- Selector de idioma en la parte superior derecha ---
+    if 'lang' not in st.session_state:
+        st.session_state['lang'] = 'en'
+    lang = st.sidebar.selectbox('Language / Idioma', options=[('en', 'English'), ('es', 'Español')], format_func=lambda x: x[1], index=0 if st.session_state['lang']=='en' else 1)
+    st.session_state['lang'] = lang[0]
     if "logs" not in st.session_state:
         st.session_state.logs = {label: "" for label, _ in MODULES}
     if "tests_ok" not in st.session_state:
@@ -315,7 +371,7 @@ def pipeline_ui() -> None:
 
     # Mostrar Run Tests y Validate Pipeline solo en modo desarrollador
     if dev_mode:
-        if st.button("Run Tests"):
+        if st.button(t('run_tests')):
             with st.spinner("Running tests..."):
                 out, code = run_test_all()
             with st.expander("Test Output", expanded=code != 0):
@@ -324,9 +380,9 @@ def pipeline_ui() -> None:
             if st.session_state.tests_ok:
                 st.success("Tests passed")
             else:
-                st.error("Tests failed. Check output for details.")
+                st.error(t('tests_failed'))
 
-        if st.button("Validate Pipeline"):
+        if st.button(t('validate_pipeline')):
             with st.spinner("Validating pipeline..."):
                 vout, vcode = run_validate_all()
             with st.expander("Validation Output", expanded=vcode != 0):
@@ -335,7 +391,13 @@ def pipeline_ui() -> None:
             if st.session_state.validation_ok:
                 st.success("Validation passed")
             else:
-                st.error("Validation reported issues. Check output for details.")
+                st.error(t('validation_failed'))
+
+    # --- NUEVO: Botón para ejecutar toda la pipeline ---
+    if st.button(t('run_all')):
+        with st.spinner("Running full pipeline..."):
+            run_headless(auto=True)
+        st.success(t('pipeline_completed'))
 
     st.divider()
 
@@ -466,11 +528,26 @@ def run_step_ui(label: str, script: str, budget: float, dev_mode: bool) -> None:
         missing = [f for f in data_files if not os.path.exists(f)]
         if missing:
             subprocess.run(['python', 'mock_data.py'], encoding='utf-8')
-    # --- NUEVO: Instalar requirements solo si falta algo ---
+    # --- NUEVO: Aviso si los archivos de resultados existen antes de correr módulos ---
+    output_path = None
+    for mod_label, mod_script in MODULES:
+        if mod_label == label:
+            idx = MODULES.index((mod_label, mod_script))
+            if idx < len(fba_agent.OUTPUTS):
+                output_path = list(fba_agent.OUTPUTS.values())[idx]
+            break
+    if output_path and os.path.exists(output_path):
+        st.info(t('results_file_exists', output_path=output_path))
+        if st.button(t('reset_pipeline')):
+            with st.spinner(t('resetting_pipeline')):
+                result = subprocess.run(['python', 'reset_pipeline.py'], capture_output=True, text=True)
+            st.success(t('pipeline_reset'))
+            st.code(result.stdout + '\n' + result.stderr)
+    # --- Instalar requirements solo si falta algo ---
     if not check_requirements_installed():
-        with st.spinner("Instalando dependencias..."):
+        with st.spinner(t('installing_deps')):
             pip_log = run_prepare_environment()
-        with st.expander("Environment Setup Log", expanded=True):
+        with st.expander(t('env_setup_log'), expanded=True):
             st.code(pip_log)
     # Ejecutar el script con el flag --mock si corresponde
     cmd = ['python', script]
@@ -483,10 +560,10 @@ def run_step_ui(label: str, script: str, budget: float, dev_mode: bool) -> None:
     log = stdout + '\n' + stderr
     st.session_state.logs[label] = stdout if returncode == 0 else stderr
     if returncode == 0:
-        st.success(f"✅ {label} completed successfully")
+        st.success(t('step_success', label=label))
         commit_and_push_changes(f"Auto: updated results after {label}")
     else:
-        st.error(f"❌ {label} failed")
+        st.error(t('step_failed', label=label))
     with st.expander("Step Log", expanded=returncode != 0 and dev_mode):
         st.code(log)
 
