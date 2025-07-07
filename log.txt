@@ -68,3 +68,7 @@ Descartados por ASIN no encontrado: 0.
 2025-07-07 13:20:47 RUN START
 2025-07-07 13:35:43 BUDGET 1500.0
 2025-07-07 13:35:43 START product_discovery
+2025-07-07 13:35:43 RESULT product_discovery failed 0.8s Command '['C:\\Users\\msvelo\\Documents\\private_msv\\AmazonFBA_AI_Agent\\venv\\Scripts\\python.exe', 'product_discovery.py', '--budget', '1500.0']' returned non-zero exit status 2.
+2025-07-07 13:35:43 START market_analysis
+2025-07-07 13:35:45 RESULT market_analysis failed 1.9s Command '['C:\\Users\\msvelo\\Documents\\private_msv\\AmazonFBA_AI_Agent\\venv\\Scripts\\python.exe', 'market_analysis.py', '--csv', 'data\\product_results.csv']' returned non-zero exit status 2.
+2025-07-07 13:35:45 START review_analysis
