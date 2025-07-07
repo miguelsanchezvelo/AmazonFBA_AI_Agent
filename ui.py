@@ -430,77 +430,37 @@ def pipeline_ui() -> None:
                     if label == "Run Supplier Selection":
                         display_supplier_selection()
                     elif label == "Generate Supplier Emails":
-                        supplier_dir = fba_agent.OUTPUTS["supplier_contact_generator"]
-                        if st.session_state.dev_mode and (not os.path.isdir(supplier_dir) or not os.listdir(supplier_dir)):
-                            # MOCK: Mensaje simulado editable
-                            default_msg = (
-                                "Estimado proveedor,\n\nEstoy interesado en su producto y me gustaría recibir información sobre precios, condiciones de envío y plazos de entrega para el siguiente producto:\n- Título: Mock Product 1\n- ASIN: B0MOCK001\n\nGracias de antemano por su atención.\n\nUn saludo."
-                            )
-                            if "mock_supplier_msg" not in st.session_state:
-                                st.session_state["mock_supplier_msg"] = default_msg
-                            msg = st.text_area("Mensaje simulado a proveedor (editable)", st.session_state["mock_supplier_msg"], height=200)
-                            st.session_state["mock_supplier_msg"] = msg
-                            col1, col2 = st.columns(2)
-                            with col1:
-                                if st.button("Guardar mensaje", key="guardar_mock_msg"):
-                                    st.success("Mensaje guardado (mock)")
-                            with col2:
-                                if st.button("Enviar mensaje", key="enviar_mock_msg"):
-                                    st.success("Mensaje enviado (mock, no se realiza envío real)")
+                        supplier_emails_path = os.path.join("data", "supplier_emails.txt")
+                        if os.path.exists(supplier_emails_path):
+                            with open(supplier_emails_path, "r", encoding="utf-8") as f:
+                                content = f.read()
+                            # Separar por bloques de producto
+                            blocks = [b.strip() for b in content.split("----------------------------------------") if b.strip()]
+                            for i, block in enumerate(blocks):
+                                lines = block.splitlines()
+                                asin = ""
+                                title = ""
+                                body = []
+                                for line in lines:
+                                    if line.startswith("ASIN:"):
+                                        asin = line.replace("ASIN:", "").strip()
+                                    elif line.startswith("Title:"):
+                                        title = line.replace("Title:", "").strip()
+                                    elif line.strip():
+                                        body.append(line)
+                                key = f"supplier_email_{asin}_{i}"
+                                email_text = f"ASIN: {asin}\nTitle: {title}\n\n" + "\n".join(body)
+                                new_text = st.text_area(f"Email for {title} ({asin})", email_text, height=200, key=key)
+                                if new_text != email_text:
+                                    # Guardar todos los bloques actualizados
+                                    blocks[i] = new_text
+                                    with open(supplier_emails_path, "w", encoding="utf-8") as f:
+                                        f.write("\n----------------------------------------\n".join(blocks))
+                                    st.success(f"Updated email for {title} ({asin})")
                         else:
-                            # MODO REAL: Un mensaje por producto con unidades asignadas
-                            supplier_csv = os.path.join("data", "supplier_selection_results.csv")
-                            productos = []
-                            if os.path.exists(supplier_csv):
-                                with open(supplier_csv, newline='', encoding='utf-8') as f:
-                                    reader = csv.DictReader(f)
-                                    for row in reader:
-                                        try:
-                                            units = int(float(row.get("units_to_order") or row.get("Units") or row.get("units") or 0))
-                                        except Exception:
-                                            units = 0
-                                        if units > 0:
-                                            productos.append({
-                                                "asin": row.get("asin") or row.get("ASIN") or "",
-                                                "title": row.get("title") or row.get("Title") or "",
-                                                "units": units
-                                            })
-                            if not productos:
-                                st.info("No hay productos con unidades asignadas para contactar proveedores.")
-                            for i, prod in enumerate(productos):
-                                st.markdown(f"**Producto:** {prod['title']}  ")
-                                st.markdown(f"**ASIN:** `{prod['asin']}`  |  **Unidades:** {prod['units']}")
-                                key_msg = f"supplier_msg_{prod['asin']}"
-                                if key_msg not in st.session_state:
-                                    st.session_state[key_msg] = ""
-                                if st.button(f"Generar mensaje con IA", key=f"generar_ia_{prod['asin']}"):
-                                    prompt = (
-                                        f"Redacta un correo profesional para solicitar información a un proveedor sobre el siguiente producto de Amazon:\n"
-                                        f"- Título: {prod['title']}\n- ASIN: {prod['asin']}\n\n"
-                                        "El correo debe ser cordial y solicitar precios, condiciones de envío y plazos de entrega."
-                                    )
-                                    try:
-                                        openai.api_key = os.getenv("OPENAI_API_KEY")
-                                        response = openai.ChatCompletion.create(
-                                            model="gpt-3.5-turbo",
-                                            messages=[
-                                                {"role": "system", "content": "Eres un agente experto en compras FBA."},
-                                                {"role": "user", "content": prompt}
-                                            ]
-                                        )
-                                        ai_msg = response["choices"][0]["message"]["content"].strip()
-                                        st.session_state[key_msg] = ai_msg
-                                    except Exception as e:
-                                        st.error(f"Error generando mensaje con IA: {e}")
-                                msg = st.text_area(f"Mensaje a proveedor (editable) - {prod['asin']}", st.session_state[key_msg], height=200, key=f"textarea_{prod['asin']}")
-                                st.session_state[key_msg] = msg
-                                col1, col2 = st.columns(2)
-                                with col1:
-                                    if st.button("Guardar mensaje", key=f"guardar_{prod['asin']}"):
-                                        st.success("Mensaje guardado")
-                                with col2:
-                                    if st.button("Enviar mensaje", key=f"enviar_{prod['asin']}"):
-                                        st.success("Mensaje enviado (simulado)")
+                            # Mostrar plantilla de ejemplo si no existe el archivo
+                            example = "ASIN: B0EXAMPLE\nTitle: Example Product\n\nDear Supplier,\nPlease provide your best quote for 100 units of Example Product."
+                            st.text_area("Email template example", example, height=200)
                     else:
                         display_csv(out_path, out_title)
                 else:
