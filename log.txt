@@ -80,3 +80,20 @@ Descartados por ASIN no encontrado: 0.
 2025-07-07 13:36:14 START supplier_selection
 2025-07-07 13:36:15 RESULT supplier_selection failed 0.6s Command '['C:\\Users\\msvelo\\Documents\\private_msv\\AmazonFBA_AI_Agent\\venv\\Scripts\\python.exe', 'supplier_selection.py', '--budget', '1500.0']' returned non-zero exit status 2.
 2025-07-07 13:36:15 START supplier_contact_generator
+2025-07-07 13:36:18 supplier_contact_generator: unknown ASIN B0MOCK001
+2025-07-07 13:36:18 supplier_contact_generator: unknown ASIN B0MOCK002
+2025-07-07 13:36:18 supplier_contact_generator: unknown ASIN B0MOCK003
+2025-07-07 13:36:18 RESULT supplier_contact_generator completed 3.2s
+2025-07-07 13:36:18 WARNING missing_output supplier_messages
+2025-07-07 13:36:18 START pricing_simulator
+2025-07-07 13:36:24 pricing_simulator: ASIN mismatch B0MOCK001,B0MOCK002,B0MOCK003
+2025-07-07 13:36:24 RESULT pricing_simulator completed 5.6s
+2025-07-07 13:36:24 WARNING empty_output data\pricing_suggestions.csv
+2025-07-07 13:36:24 START inventory_management
+2025-07-07 13:36:25 inventory_management: ASIN mismatch B0MOCK001,B0MOCK002,B0MOCK003
+2025-07-07 13:36:25 RESULT inventory_management completed 0.7s
+2025-07-07 13:36:25 WARNING empty_output data\inventory_management_results.csv
+2025-07-07 13:36:25 RESULT negotiation_agent skipped 0s service
+2025-07-07 13:36:25 RESULT email_manager skipped 0s service
+2025-07-07 13:36:25 RESULT order_placement_agent skipped 0s missing_input
+2025-07-07 13:36:25 START validation
