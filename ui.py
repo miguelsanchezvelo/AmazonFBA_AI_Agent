@@ -553,7 +553,7 @@ def run_step_ui(label: str, script: str, budget: float, dev_mode: bool) -> None:
             st.code(pip_log)
     # Ejecutar el script con el flag --mock si corresponde, excepto para supplier_selection.py
     cmd = ['python', script]
-    if dev_mode and script != 'supplier_selection.py':
+    if dev_mode and script not in ('supplier_selection.py', 'supplier_contact_generator.py'):
         cmd.append('--mock')
     subprocess.run(cmd, encoding='utf-8')
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding='utf-8')
