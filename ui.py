@@ -58,6 +58,7 @@ TRANSLATIONS = {
         'step_failed': '❌ {label} failed',
         'installing_deps': 'Installing dependencies...',
         'env_setup_log': 'Environment Setup Log',
+        'supplier_selection_title': 'Supplier Selection',
     },
     'es': {
         'run_all': 'Ejecutar Todo',
@@ -78,6 +79,7 @@ TRANSLATIONS = {
         'step_failed': '❌ {label} falló',
         'installing_deps': 'Instalando dependencias...',
         'env_setup_log': 'Log de instalación del entorno',
+        'supplier_selection_title': 'Selección de Proveedores',
     }
 }
 
@@ -528,7 +530,7 @@ def run_step_ui(label: str, script: str, budget: float, dev_mode: bool) -> None:
         missing = [f for f in data_files if not os.path.exists(f)]
         if missing:
             subprocess.run(['python', 'mock_data.py'], encoding='utf-8')
-    # --- NUEVO: Aviso si los archivos de resultados existen antes de correr módulos ---
+    # --- Aviso si los archivos de resultados existen antes de correr módulos ---
     output_path = None
     for mod_label, mod_script in MODULES:
         if mod_label == label:
@@ -549,9 +551,9 @@ def run_step_ui(label: str, script: str, budget: float, dev_mode: bool) -> None:
             pip_log = run_prepare_environment()
         with st.expander(t('env_setup_log'), expanded=True):
             st.code(pip_log)
-    # Ejecutar el script con el flag --mock si corresponde
+    # Ejecutar el script con el flag --mock si corresponde, excepto para supplier_selection.py
     cmd = ['python', script]
-    if dev_mode:
+    if dev_mode and script != 'supplier_selection.py':
         cmd.append('--mock')
     subprocess.run(cmd, encoding='utf-8')
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding='utf-8')
@@ -622,7 +624,7 @@ def display_supplier_selection():
     if df.empty:
         st.warning("No se encontraron proveedores para los productos seleccionados. Revisa los filtros y los datos de entrada.")
         return
-    st.subheader("Selección de Proveedores")
+    st.subheader(t('supplier_selection_title'))
     # Métricas resumen
     total_cost = df["total_cost"].sum() if "total_cost" in df else 0
     total_profit = df["estimated_profit"].sum() if "estimated_profit" in df else 0
