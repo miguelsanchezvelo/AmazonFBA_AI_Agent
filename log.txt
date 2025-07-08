@@ -379,3 +379,5 @@ Descartados por ASIN no encontrado: 0.
 2025-07-08 16:22:40 supplier_contact_generator: using fallback message for B0MOCK002
 2025-07-08 16:22:40 downgrading model to gpt-3.5-turbo for ASIN B0MOCK003
 2025-07-08 16:22:42 supplier_contact_generator: using fallback message for B0MOCK003
+2025-07-08 16:29:28 pricing_simulator: ASIN mismatch B0MOCK001,B0MOCK002,B0MOCK003
+2025-07-08 16:29:33 pricing_simulator: ASIN mismatch B0MOCK001,B0MOCK002,B0MOCK003

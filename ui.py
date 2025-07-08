@@ -424,76 +424,78 @@ def pipeline_ui() -> None:
                 run_step_ui(label, script, st.session_state.budget, st.session_state.dev_mode)
             if st.session_state.dev_mode and st.session_state.logs[label]:
                 st.text_area("Log", st.session_state.logs[label], height=150)
+            # --- SIEMPRE mostrar el editor de mensajes a proveedores en el panel correspondiente ---
+            if label == "Generate Supplier Emails":
+                supplier_messages_dir = "supplier_messages"
+                product_files = [f for f in sorted(os.listdir(supplier_messages_dir)) if f.endswith('.txt')] if os.path.exists(supplier_messages_dir) else []
+                product_options = [(f, f) for f in product_files]
+                st.subheader("Supplier Message Editor")
+                selected_product = st.selectbox(
+                    "Select product", options=product_options, format_func=lambda x: x[0] if x else "",
+                    index=0 if product_options else None, key="product_selector"
+                ) if product_options else None
+                if selected_product:
+                    msg_path = os.path.join(supplier_messages_dir, selected_product[0])
+                    try:
+                        with open(msg_path, "r", encoding="utf-8") as f:
+                            content = f.read()
+                    except Exception:
+                        content = ""
+                else:
+                    content = "ASIN: B0EXAMPLE\nTitle: Example Product\n\nDear Supplier,\nPlease provide your best quote for 100 units of Example Product."
+                editor_key = f"editor_{selected_product[0]}" if selected_product else "editor_template"
+                edited_msg = st.text_area("Message", content, height=200, key=editor_key, disabled=not selected_product)
+                instruction_key = f"instruction_{selected_product[0]}" if selected_product else "instruction_template"
+                instruction = st.text_input("Instruction for ChatGPT (e.g. 'Make it more formal, add a professional signature')", key=instruction_key, disabled=not selected_product)
+                col_btn1, col_btn2, col_btn3 = st.columns([1,1,1])
+                with col_btn1:
+                    if st.button("Save message", key=f"save_{selected_product[0]}" if selected_product else "save_template", disabled=not selected_product):
+                        with open(msg_path, "w", encoding="utf-8") as f:
+                            f.write(st.session_state[editor_key])
+                        st.success("Message saved.")
+                with col_btn2:
+                    if st.button("Send message", key=f"send_{selected_product[0]}" if selected_product else "send_template", disabled=not selected_product):
+                        st.success(f"Message for {selected_product[0]} sent (simulated)." if selected_product else "No product selected.")
+                with col_btn3:
+                    if st.button("Improve with ChatGPT", key=f"improve_{selected_product[0]}" if selected_product else "improve_template", disabled=not selected_product):
+                        import openai
+                        client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+                        asin = selected_product[0] if selected_product else "B0EXAMPLE"
+                        title = ""
+                        for line in content.splitlines():
+                            if line.lower().startswith("title:"):
+                                title = line.split(":",1)[-1].strip()
+                                break
+                        prompt = f"Product ASIN: {asin}\nProduct Title: {title}\n\nOriginal message:\n{edited_msg}\n\nInstruction: {instruction}\n\nRewrite the message accordingly, making sure it is appropriate for the product."
+                        try:
+                            response = client.chat.completions.create(
+                                model="gpt-3.5-turbo",
+                                messages=[
+                                    {"role": "system", "content": "You are an expert in writing professional supplier emails for Amazon FBA sourcing. Always include a suitable signature and adapt the message to the product."},
+                                    {"role": "user", "content": prompt}
+                                ]
+                            )
+                            improved = response.choices[0].message.content.strip()
+                            st.session_state[f"improved_{selected_product[0]}"] = improved
+                        except Exception as e:
+                            st.session_state[f"improved_{selected_product[0]}"] = f"[Error: {e}]"
+                improved = st.session_state.get(f"improved_{selected_product[0]}", "") if selected_product else ""
+                if improved:
+                    st.text_area(f"ChatGPT suggestion", improved, height=200, key=f"suggestion_{selected_product[0]}" if selected_product else "suggestion_template")
+                    if st.button("Replace with suggestion", key=f"replace_{selected_product[0]}" if selected_product else "replace_template"):
+                        st.session_state[editor_key] = improved
+                        st.success("Message replaced with ChatGPT suggestion.")
+            # --- FIN bloque editor SIEMPRE visible ---
             if idx < len(output_files):
                 out_title, out_path = output_files[idx]
-                if os.path.exists(out_path) and file_has_content(out_path):
-                    if label == "Run Supplier Selection":
+                if label == "Run Supplier Selection":
+                    if os.path.exists(out_path) and file_has_content(out_path):
                         display_supplier_selection()
-                    elif label == "Generate Supplier Emails":
-                        supplier_messages_dir = "supplier_messages"
-                        # --- SIEMPRE mostrar el editor de mensajes a proveedores ---
-                        product_files = [f for f in sorted(os.listdir(supplier_messages_dir)) if f.endswith('.txt')] if os.path.exists(supplier_messages_dir) else []
-                        product_options = [(f, f) for f in product_files]
-                        st.subheader("Supplier Message Editor")
-                        selected_product = st.selectbox(
-                            "Select product", options=product_options, format_func=lambda x: x[0] if x else "",
-                            index=0 if product_options else None, key="product_selector"
-                        ) if product_options else None
-                        if selected_product:
-                            msg_path = os.path.join(supplier_messages_dir, selected_product[0])
-                            try:
-                                with open(msg_path, "r", encoding="utf-8") as f:
-                                    content = f.read()
-                            except Exception:
-                                content = ""
-                        else:
-                            content = "ASIN: B0EXAMPLE\nTitle: Example Product\n\nDear Supplier,\nPlease provide your best quote for 100 units of Example Product."
-                        editor_key = f"editor_{selected_product[0]}" if selected_product else "editor_template"
-                        edited_msg = st.text_area("Message", content, height=200, key=editor_key, disabled=not selected_product)
-                        instruction_key = f"instruction_{selected_product[0]}" if selected_product else "instruction_template"
-                        instruction = st.text_input("Instruction for ChatGPT (e.g. 'Make it more formal, add a professional signature')", key=instruction_key, disabled=not selected_product)
-                        col_btn1, col_btn2, col_btn3 = st.columns([1,1,1])
-                        with col_btn1:
-                            if st.button("Save message", key=f"save_{selected_product[0]}" if selected_product else "save_template", disabled=not selected_product):
-                                with open(msg_path, "w", encoding="utf-8") as f:
-                                    f.write(st.session_state[editor_key])
-                                st.success("Message saved.")
-                        with col_btn2:
-                            if st.button("Send message", key=f"send_{selected_product[0]}" if selected_product else "send_template", disabled=not selected_product):
-                                st.success(f"Message for {selected_product[0]} sent (simulated)." if selected_product else "No product selected.")
-                        with col_btn3:
-                            if st.button("Improve with ChatGPT", key=f"improve_{selected_product[0]}" if selected_product else "improve_template", disabled=not selected_product):
-                                import openai
-                                openai.api_key = os.getenv("OPENAI_API_KEY")
-                                asin = selected_product[0] if selected_product else "B0EXAMPLE"
-                                title = ""
-                                for line in content.splitlines():
-                                    if line.lower().startswith("title:"):
-                                        title = line.split(":",1)[-1].strip()
-                                        break
-                                prompt = f"Product ASIN: {asin}\nProduct Title: {title}\n\nOriginal message:\n{edited_msg}\n\nInstruction: {instruction}\n\nRewrite the message accordingly, making sure it is appropriate for the product." 
-                                try:
-                                    response = openai.ChatCompletion.create(
-                                        model="gpt-3.5-turbo",
-                                        messages=[
-                                            {"role": "system", "content": "You are an expert in writing professional supplier emails for Amazon FBA sourcing. Always include a suitable signature and adapt the message to the product."},
-                                            {"role": "user", "content": prompt}
-                                        ]
-                                    )
-                                    improved = response["choices"][0]["message"]["content"].strip()
-                                    st.session_state[f"improved_{selected_product[0]}"] = improved
-                                except Exception as e:
-                                    st.session_state[f"improved_{selected_product[0]}"] = f"[Error: {e}]"
-                        improved = st.session_state.get(f"improved_{selected_product[0]}", "") if selected_product else ""
-                        if improved:
-                            st.text_area(f"ChatGPT suggestion", improved, height=200, key=f"suggestion_{selected_product[0]}" if selected_product else "suggestion_template")
-                            if st.button("Replace with suggestion", key=f"replace_{selected_product[0]}" if selected_product else "replace_template"):
-                                st.session_state[editor_key] = improved
-                                st.success("Message replaced with ChatGPT suggestion.")
-                    else:
+                elif label not in ("Generate Supplier Emails",):
+                    if os.path.exists(out_path) and file_has_content(out_path):
                         display_csv(out_path, out_title)
-                else:
-                    prereqs_met = False
+                    else:
+                        prereqs_met = False
             else:
                 prereqs_met = False
 
