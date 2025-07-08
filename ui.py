@@ -431,7 +431,11 @@ def pipeline_ui() -> None:
                         display_supplier_selection()
                     elif label == "Generate Supplier Emails":
                         supplier_emails_path = os.path.join("data", "supplier_emails.txt")
-                        if os.path.exists(supplier_emails_path):
+                        supplier_messages_dir = "supplier_messages"
+                        if os.path.exists(supplier_messages_dir) and os.listdir(supplier_messages_dir):
+                            st.subheader("Supplier Messages (editable)")
+                            show_messages(supplier_messages_dir)
+                        elif os.path.exists(supplier_emails_path):
                             with open(supplier_emails_path, "r", encoding="utf-8") as f:
                                 content = f.read()
                             # Separar por bloques de producto
