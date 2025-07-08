@@ -258,3 +258,21 @@ Descartados por ASIN no encontrado: 0.
 2025-07-08 13:48:21 supplier_contact_generator: using fallback message for B0MOCK002
 2025-07-08 13:48:21 downgrading model to gpt-3.5-turbo for ASIN B0MOCK003
 2025-07-08 13:48:23 supplier_contact_generator: using fallback message for B0MOCK003
+2025-07-08 13:53:28 supplier_contact_generator: unknown ASIN B0MOCK001 (not in product_results.csv)
+2025-07-08 13:53:28 supplier_contact_generator: unknown ASIN B0MOCK002 (not in product_results.csv)
+2025-07-08 13:53:28 supplier_contact_generator: unknown ASIN B0MOCK003 (not in product_results.csv)
+2025-07-08 13:53:30 downgrading model to gpt-3.5-turbo for ASIN B0MOCK001
+2025-07-08 13:53:32 supplier_contact_generator: using fallback message for B0MOCK001
+2025-07-08 13:53:32 downgrading model to gpt-3.5-turbo for ASIN B0MOCK002
+2025-07-08 13:53:33 supplier_contact_generator: using fallback message for B0MOCK002
+2025-07-08 13:53:34 downgrading model to gpt-3.5-turbo for ASIN B0MOCK003
+2025-07-08 13:53:35 supplier_contact_generator: using fallback message for B0MOCK003
+2025-07-08 13:53:38 supplier_contact_generator: unknown ASIN B0MOCK001 (not in product_results.csv)
+2025-07-08 13:53:38 supplier_contact_generator: unknown ASIN B0MOCK002 (not in product_results.csv)
+2025-07-08 13:53:38 supplier_contact_generator: unknown ASIN B0MOCK003 (not in product_results.csv)
+2025-07-08 13:53:39 downgrading model to gpt-3.5-turbo for ASIN B0MOCK001
+2025-07-08 13:53:41 supplier_contact_generator: using fallback message for B0MOCK001
+2025-07-08 13:53:41 downgrading model to gpt-3.5-turbo for ASIN B0MOCK002
+2025-07-08 13:53:43 supplier_contact_generator: using fallback message for B0MOCK002
+2025-07-08 13:53:43 downgrading model to gpt-3.5-turbo for ASIN B0MOCK003
+2025-07-08 13:53:45 supplier_contact_generator: using fallback message for B0MOCK003

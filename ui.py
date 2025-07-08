@@ -447,13 +447,21 @@ def pipeline_ui() -> None:
                                 editor_key = f"editor_{name}"
                                 edited_msg = st.text_area(f"Message for {name}", content, height=200, key=editor_key)
                                 # Campo de instrucción para ChatGPT
-                                col1, col2 = st.columns([2,1])
-                                with col1:
-                                    instruction_key = f"instruction_{name}"
-                                    instruction = st.text_input("Instruction for ChatGPT (e.g. 'Make it more formal, add a professional signature')", key=instruction_key)
-                                with col2:
-                                    improve_key = f"improve_{name}"
-                                    if st.button("Improve with ChatGPT", key=improve_key):
+                                instruction_key = f"instruction_{name}"
+                                instruction = st.text_input("Instruction for ChatGPT (e.g. 'Make it more formal, add a professional signature')", key=instruction_key)
+                                # Botones debajo del editor
+                                col_btn1, col_btn2, col_btn3 = st.columns([1,1,1])
+                                with col_btn1:
+                                    if st.button("Save message", key=f"save_{name}"):
+                                        with open(msg_path, "w", encoding="utf-8") as f:
+                                            f.write(st.session_state[editor_key])
+                                        st.success("Message saved.")
+                                with col_btn2:
+                                    if st.button("Send message", key=f"send_{name}"):
+                                        # Aquí puedes simular el envío
+                                        st.success(f"Message for {name} sent (simulated).")
+                                with col_btn3:
+                                    if st.button("Improve with ChatGPT", key=f"improve_{name}"):
                                         import openai
                                         openai.api_key = os.getenv("OPENAI_API_KEY")
                                         prompt = f"Original message:\n{edited_msg}\n\nInstruction: {instruction}\n\nRewrite the message accordingly."
@@ -476,11 +484,6 @@ def pipeline_ui() -> None:
                                     if st.button("Replace with suggestion", key=f"replace_{name}"):
                                         st.session_state[editor_key] = improved
                                         st.success("Message replaced with ChatGPT suggestion.")
-                                # Botón para guardar manualmente
-                                if st.button("Save message", key=f"save_{name}"):
-                                    with open(msg_path, "w", encoding="utf-8") as f:
-                                        f.write(st.session_state[editor_key])
-                                    st.success("Message saved.")
                         else:
                             # Mostrar plantilla de ejemplo si no existe el archivo
                             example = "ASIN: B0EXAMPLE\nTitle: Example Product\n\nDear Supplier,\nPlease provide your best quote for 100 units of Example Product."
