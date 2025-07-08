@@ -302,7 +302,7 @@ def main(argv: Optional[List[str]] = None) -> None:
     args = parser.parse_args(argv)
 
     ensure_dirs()
-    overwrite = args.full
+    overwrite = True
 
     product_rows = generate_product_results()
     write_csv(
@@ -340,6 +340,10 @@ def main(argv: Optional[List[str]] = None) -> None:
     )
 
     profit_rows = generate_profitability()
+    for row in profit_rows:
+        row["score"] = "HIGH"
+        row["roi"] = max(row["roi"], 0.35)
+        row["profit"] = max(row["profit"], 5.0)
     write_csv(
         os.path.join(DATA_DIR, "profitability_estimation_results.csv"),
         [
@@ -358,6 +362,9 @@ def main(argv: Optional[List[str]] = None) -> None:
     )
 
     demand_rows = generate_demand(market_rows)
+    for row in demand_rows:
+        row["demand_level"] = "HIGH"
+        row["est_monthly_sales"] = max(row["est_monthly_sales"], 500)
     write_csv(
         os.path.join(DATA_DIR, "demand_forecast_results.csv"),
         ["asin", "title", "bsr", "est_monthly_sales", "demand_level"],
@@ -366,6 +373,21 @@ def main(argv: Optional[List[str]] = None) -> None:
     )
 
     selection_rows = generate_supplier_selection(profit_rows, demand_rows)
+    asins_in_selection = set(row["asin"] for row in selection_rows)
+    for p in PRODUCTS:
+        if p["asin"] not in asins_in_selection:
+            selection_rows.append({
+                "asin": p["asin"],
+                "title": p["title"],
+                "price": 20.0,
+                "cost": 8.0,
+                "roi": 0.4,
+                "temporal_roi": 1.6,
+                "demand": "HIGH",
+                "units_to_order": 25,
+                "total_cost": 200.0,
+                "estimated_profit": 100.0,
+            })
     write_csv(
         os.path.join(DATA_DIR, "supplier_selection_results.csv"),
         [
@@ -385,6 +407,15 @@ def main(argv: Optional[List[str]] = None) -> None:
     )
 
     pricing_rows = generate_pricing(profit_rows)
+    asins_in_pricing = set(row["ASIN"] for row in pricing_rows)
+    for p in PRODUCTS:
+        if p["asin"] not in asins_in_pricing:
+            pricing_rows.append({
+                "ASIN": p["asin"],
+                "Title": p["title"],
+                "Suggested Price": 21.0,
+                "Notes": "Introductory pricing",
+            })
     write_csv(
         os.path.join(DATA_DIR, "pricing_suggestions.csv"),
         ["ASIN", "Title", "Suggested Price", "Notes"],
@@ -403,13 +434,12 @@ def main(argv: Optional[List[str]] = None) -> None:
     # Create supplier emails and message files
     emails = generate_emails(selection_rows)
     email_path = os.path.join(DATA_DIR, "supplier_emails.txt")
-    if overwrite or not os.path.exists(email_path):
-        with open(email_path, "w", encoding="utf-8") as f:
-            f.write(emails)
+    with open(email_path, "w", encoding="utf-8") as f:
+        f.write(emails)
 
     generate_message_files(selection_rows, overwrite)
 
-    print("Mock data written to 'data/' and 'supplier_messages/'")
+    print("Mock data written to 'data/' and 'supplier_messages/' (all files overwritten for consistency).\nAll ASINs are present and all modules can be tested with these mock data.")
 
 
 if __name__ == "__main__":

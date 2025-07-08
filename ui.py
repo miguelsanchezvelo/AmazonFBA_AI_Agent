@@ -519,7 +519,7 @@ def run_step_ui(label: str, script: str, budget: float, dev_mode: bool) -> None:
         ]
         missing = [f for f in data_files if not os.path.exists(f)]
         if missing:
-            subprocess.run(['python', 'mock_data.py'], encoding='utf-8')
+            subprocess.run(['python', 'mock_data_generator.py', '--full'], check=True)
     # --- Aviso si los archivos de resultados existen antes de correr módulos ---
     output_path = None
     for mod_label, mod_script in MODULES:
