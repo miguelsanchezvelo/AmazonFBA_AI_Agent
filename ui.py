@@ -434,33 +434,53 @@ def pipeline_ui() -> None:
                         supplier_messages_dir = "supplier_messages"
                         if os.path.exists(supplier_messages_dir) and os.listdir(supplier_messages_dir):
                             st.subheader("Supplier Messages (editable)")
-                            show_messages(supplier_messages_dir)
-                        elif os.path.exists(supplier_emails_path):
-                            with open(supplier_emails_path, "r", encoding="utf-8") as f:
-                                content = f.read()
-                            # Separar por bloques de producto
-                            blocks = [b.strip() for b in content.split("----------------------------------------") if b.strip()]
-                            for i, block in enumerate(blocks):
-                                lines = block.splitlines()
-                                asin = ""
-                                title = ""
-                                body = []
-                                for line in lines:
-                                    if line.startswith("ASIN:"):
-                                        asin = line.replace("ASIN:", "").strip()
-                                    elif line.startswith("Title:"):
-                                        title = line.replace("Title:", "").strip()
-                                    elif line.strip():
-                                        body.append(line)
-                                key = f"supplier_email_{asin}_{i}"
-                                email_text = f"ASIN: {asin}\nTitle: {title}\n\n" + "\n".join(body)
-                                new_text = st.text_area(f"Email for {title} ({asin})", email_text, height=200, key=key)
-                                if new_text != email_text:
-                                    # Guardar todos los bloques actualizados
-                                    blocks[i] = new_text
-                                    with open(supplier_emails_path, "w", encoding="utf-8") as f:
-                                        f.write("\n----------------------------------------\n".join(blocks))
-                                    st.success(f"Updated email for {title} ({asin})")
+                            for name in sorted(os.listdir(supplier_messages_dir)):
+                                if not name.endswith(".txt"):
+                                    continue
+                                msg_path = os.path.join(supplier_messages_dir, name)
+                                try:
+                                    with open(msg_path, "r", encoding="utf-8") as f:
+                                        content = f.read()
+                                except Exception:
+                                    content = ""
+                                # Editor principal
+                                editor_key = f"editor_{name}"
+                                edited_msg = st.text_area(f"Message for {name}", content, height=200, key=editor_key)
+                                # Campo de instrucción para ChatGPT
+                                col1, col2 = st.columns([2,1])
+                                with col1:
+                                    instruction_key = f"instruction_{name}"
+                                    instruction = st.text_input("Instruction for ChatGPT (e.g. 'Make it more formal, add a professional signature')", key=instruction_key)
+                                with col2:
+                                    improve_key = f"improve_{name}"
+                                    if st.button("Improve with ChatGPT", key=improve_key):
+                                        import openai
+                                        openai.api_key = os.getenv("OPENAI_API_KEY")
+                                        prompt = f"Original message:\n{edited_msg}\n\nInstruction: {instruction}\n\nRewrite the message accordingly."
+                                        try:
+                                            response = openai.ChatCompletion.create(
+                                                model="gpt-3.5-turbo",
+                                                messages=[
+                                                    {"role": "system", "content": "You are an expert in writing professional supplier emails for Amazon FBA sourcing. Always include a suitable signature."},
+                                                    {"role": "user", "content": prompt}
+                                                ]
+                                            )
+                                            improved = response["choices"][0]["message"]["content"].strip()
+                                            st.session_state[f"improved_{name}"] = improved
+                                        except Exception as e:
+                                            st.session_state[f"improved_{name}"] = f"[Error: {e}]"
+                                # Mostrar sugerencia de ChatGPT si existe
+                                improved = st.session_state.get(f"improved_{name}", "")
+                                if improved:
+                                    st.text_area(f"ChatGPT suggestion for {name}", improved, height=200, key=f"suggestion_{name}")
+                                    if st.button("Replace with suggestion", key=f"replace_{name}"):
+                                        st.session_state[editor_key] = improved
+                                        st.success("Message replaced with ChatGPT suggestion.")
+                                # Botón para guardar manualmente
+                                if st.button("Save message", key=f"save_{name}"):
+                                    with open(msg_path, "w", encoding="utf-8") as f:
+                                        f.write(st.session_state[editor_key])
+                                    st.success("Message saved.")
                         else:
                             # Mostrar plantilla de ejemplo si no existe el archivo
                             example = "ASIN: B0EXAMPLE\nTitle: Example Product\n\nDear Supplier,\nPlease provide your best quote for 100 units of Example Product."
