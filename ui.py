@@ -430,64 +430,74 @@ def pipeline_ui() -> None:
                     if label == "Run Supplier Selection":
                         display_supplier_selection()
                     elif label == "Generate Supplier Emails":
-                        supplier_emails_path = os.path.join("data", "supplier_emails.txt")
                         supplier_messages_dir = "supplier_messages"
-                        if os.path.exists(supplier_messages_dir) and os.listdir(supplier_messages_dir):
-                            st.subheader("Supplier Messages (editable)")
-                            for name in sorted(os.listdir(supplier_messages_dir)):
-                                if not name.endswith(".txt"):
-                                    continue
-                                msg_path = os.path.join(supplier_messages_dir, name)
-                                try:
-                                    with open(msg_path, "r", encoding="utf-8") as f:
-                                        content = f.read()
-                                except Exception:
-                                    content = ""
-                                # Editor principal
-                                editor_key = f"editor_{name}"
-                                edited_msg = st.text_area(f"Message for {name}", content, height=200, key=editor_key)
-                                # Campo de instrucción para ChatGPT
-                                instruction_key = f"instruction_{name}"
-                                instruction = st.text_input("Instruction for ChatGPT (e.g. 'Make it more formal, add a professional signature')", key=instruction_key)
-                                # Botones debajo del editor
-                                col_btn1, col_btn2, col_btn3 = st.columns([1,1,1])
-                                with col_btn1:
-                                    if st.button("Save message", key=f"save_{name}"):
-                                        with open(msg_path, "w", encoding="utf-8") as f:
-                                            f.write(st.session_state[editor_key])
-                                        st.success("Message saved.")
-                                with col_btn2:
-                                    if st.button("Send message", key=f"send_{name}"):
-                                        # Aquí puedes simular el envío
-                                        st.success(f"Message for {name} sent (simulated).")
-                                with col_btn3:
-                                    if st.button("Improve with ChatGPT", key=f"improve_{name}"):
-                                        import openai
-                                        openai.api_key = os.getenv("OPENAI_API_KEY")
-                                        prompt = f"Original message:\n{edited_msg}\n\nInstruction: {instruction}\n\nRewrite the message accordingly."
-                                        try:
-                                            response = openai.ChatCompletion.create(
-                                                model="gpt-3.5-turbo",
-                                                messages=[
-                                                    {"role": "system", "content": "You are an expert in writing professional supplier emails for Amazon FBA sourcing. Always include a suitable signature."},
-                                                    {"role": "user", "content": prompt}
-                                                ]
-                                            )
-                                            improved = response["choices"][0]["message"]["content"].strip()
-                                            st.session_state[f"improved_{name}"] = improved
-                                        except Exception as e:
-                                            st.session_state[f"improved_{name}"] = f"[Error: {e}]"
-                                # Mostrar sugerencia de ChatGPT si existe
-                                improved = st.session_state.get(f"improved_{name}", "")
-                                if improved:
-                                    st.text_area(f"ChatGPT suggestion for {name}", improved, height=200, key=f"suggestion_{name}")
-                                    if st.button("Replace with suggestion", key=f"replace_{name}"):
-                                        st.session_state[editor_key] = improved
-                                        st.success("Message replaced with ChatGPT suggestion.")
+                        # --- NUEVO: Bloque siempre visible para mensajes a proveedores ---
+                        # Obtener lista de productos (archivos .txt)
+                        product_files = [f for f in sorted(os.listdir(supplier_messages_dir)) if f.endswith('.txt')] if os.path.exists(supplier_messages_dir) else []
+                        product_options = [(f, f) for f in product_files]
+                        # Selector de producto
+                        st.subheader("Supplier Message Editor")
+                        selected_product = st.selectbox(
+                            "Select product", options=product_options, format_func=lambda x: x[0] if x else "",
+                            index=0 if product_options else None, key="product_selector"
+                        ) if product_options else None
+                        # Cargar mensaje o plantilla
+                        if selected_product:
+                            msg_path = os.path.join(supplier_messages_dir, selected_product[0])
+                            try:
+                                with open(msg_path, "r", encoding="utf-8") as f:
+                                    content = f.read()
+                            except Exception:
+                                content = ""
                         else:
-                            # Mostrar plantilla de ejemplo si no existe el archivo
-                            example = "ASIN: B0EXAMPLE\nTitle: Example Product\n\nDear Supplier,\nPlease provide your best quote for 100 units of Example Product."
-                            st.text_area("Email template example", example, height=200)
+                            content = "ASIN: B0EXAMPLE\nTitle: Example Product\n\nDear Supplier,\nPlease provide your best quote for 100 units of Example Product."
+                        # Editor de texto
+                        editor_key = f"editor_{selected_product[0]}" if selected_product else "editor_template"
+                        edited_msg = st.text_area("Message", content, height=200, key=editor_key, disabled=not selected_product)
+                        # Campo de instrucción para ChatGPT
+                        instruction_key = f"instruction_{selected_product[0]}" if selected_product else "instruction_template"
+                        instruction = st.text_input("Instruction for ChatGPT (e.g. 'Make it more formal, add a professional signature')", key=instruction_key, disabled=not selected_product)
+                        # Botones debajo del editor
+                        col_btn1, col_btn2, col_btn3 = st.columns([1,1,1])
+                        with col_btn1:
+                            if st.button("Save message", key=f"save_{selected_product[0]}" if selected_product else "save_template", disabled=not selected_product):
+                                with open(msg_path, "w", encoding="utf-8") as f:
+                                    f.write(st.session_state[editor_key])
+                                st.success("Message saved.")
+                        with col_btn2:
+                            if st.button("Send message", key=f"send_{selected_product[0]}" if selected_product else "send_template", disabled=not selected_product):
+                                st.success(f"Message for {selected_product[0]} sent (simulated)." if selected_product else "No product selected.")
+                        with col_btn3:
+                            if st.button("Improve with ChatGPT", key=f"improve_{selected_product[0]}" if selected_product else "improve_template", disabled=not selected_product):
+                                import openai
+                                openai.api_key = os.getenv("OPENAI_API_KEY")
+                                # Extraer ASIN y título si están en el mensaje
+                                asin = selected_product[0] if selected_product else "B0EXAMPLE"
+                                title = ""
+                                for line in content.splitlines():
+                                    if line.lower().startswith("title:"):
+                                        title = line.split(":",1)[-1].strip()
+                                        break
+                                prompt = f"Product ASIN: {asin}\nProduct Title: {title}\n\nOriginal message:\n{edited_msg}\n\nInstruction: {instruction}\n\nRewrite the message accordingly, making sure it is appropriate for the product." 
+                                try:
+                                    response = openai.ChatCompletion.create(
+                                        model="gpt-3.5-turbo",
+                                        messages=[
+                                            {"role": "system", "content": "You are an expert in writing professional supplier emails for Amazon FBA sourcing. Always include a suitable signature and adapt the message to the product."},
+                                            {"role": "user", "content": prompt}
+                                        ]
+                                    )
+                                    improved = response["choices"][0]["message"]["content"].strip()
+                                    st.session_state[f"improved_{selected_product[0]}"] = improved
+                                except Exception as e:
+                                    st.session_state[f"improved_{selected_product[0]}"] = f"[Error: {e}]"
+                        # Mostrar sugerencia de ChatGPT si existe
+                        improved = st.session_state.get(f"improved_{selected_product[0]}", "") if selected_product else ""
+                        if improved:
+                            st.text_area(f"ChatGPT suggestion", improved, height=200, key=f"suggestion_{selected_product[0]}" if selected_product else "suggestion_template")
+                            if st.button("Replace with suggestion", key=f"replace_{selected_product[0]}" if selected_product else "replace_template"):
+                                st.session_state[editor_key] = improved
+                                st.success("Message replaced with ChatGPT suggestion.")
                     else:
                         display_csv(out_path, out_title)
                 else:

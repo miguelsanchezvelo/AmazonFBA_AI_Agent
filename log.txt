@@ -276,3 +276,70 @@ Descartados por ASIN no encontrado: 0.
 2025-07-08 13:53:43 supplier_contact_generator: using fallback message for B0MOCK002
 2025-07-08 13:53:43 downgrading model to gpt-3.5-turbo for ASIN B0MOCK003
 2025-07-08 13:53:45 supplier_contact_generator: using fallback message for B0MOCK003
+2025-07-08 13:54:38 supplier_contact_generator: unknown ASIN B0MOCK001 (not in product_results.csv)
+2025-07-08 13:54:38 supplier_contact_generator: unknown ASIN B0MOCK002 (not in product_results.csv)
+2025-07-08 13:54:38 supplier_contact_generator: unknown ASIN B0MOCK003 (not in product_results.csv)
+2025-07-08 13:54:40 downgrading model to gpt-3.5-turbo for ASIN B0MOCK001
+2025-07-08 13:54:42 supplier_contact_generator: using fallback message for B0MOCK001
+2025-07-08 13:54:42 downgrading model to gpt-3.5-turbo for ASIN B0MOCK002
+2025-07-08 13:54:44 supplier_contact_generator: using fallback message for B0MOCK002
+2025-07-08 13:54:44 downgrading model to gpt-3.5-turbo for ASIN B0MOCK003
+2025-07-08 13:54:46 supplier_contact_generator: using fallback message for B0MOCK003
+2025-07-08 13:54:53 pricing_simulator: ASIN mismatch B0MOCK001,B0MOCK002,B0MOCK003
+2025-07-08 13:54:55 inventory_management: ASIN mismatch B0MOCK001,B0MOCK002,B0MOCK003
+2025-07-08 13:55:19 pricing_simulator: ASIN mismatch B0MOCK001,B0MOCK002,B0MOCK003
+2025-07-08 13:55:21 inventory_management: ASIN mismatch B0MOCK001,B0MOCK002,B0MOCK003
+2025-07-08 13:55:24 RUN START
+2025-07-08 15:31:33 BUDGET 1500.0
+2025-07-08 15:31:33 START product_discovery
+2025-07-08 15:31:35 RESULT product_discovery failed 1.8s Command '['C:\\Users\\msvelo\\Documents\\private_msv\\AmazonFBA_AI_Agent\\venv\\Scripts\\python.exe', 'product_discovery.py', '--budget', '1500.0']' returned non-zero exit status 2.
+2025-07-08 15:31:35 START market_analysis
+2025-07-08 15:31:37 RESULT market_analysis failed 2.1s Command '['C:\\Users\\msvelo\\Documents\\private_msv\\AmazonFBA_AI_Agent\\venv\\Scripts\\python.exe', 'market_analysis.py', '--csv', 'data\\product_results.csv']' returned non-zero exit status 2.
+2025-07-08 15:31:37 START review_analysis
+2025-07-08 15:32:02 RESULT review_analysis completed 25.3s
+2025-07-08 15:32:02 START profitability_estimation
+2025-07-08 15:32:03 RESULT profitability_estimation completed 0.6s
+2025-07-08 15:32:03 START demand_forecast
+2025-07-08 15:32:04 RESULT demand_forecast completed 0.7s
+2025-07-08 15:32:04 START supplier_selection
+2025-07-08 15:32:05 RESULT supplier_selection failed 0.8s Command '['C:\\Users\\msvelo\\Documents\\private_msv\\AmazonFBA_AI_Agent\\venv\\Scripts\\python.exe', 'supplier_selection.py', '--budget', '1500.0']' returned non-zero exit status 2.
+2025-07-08 15:32:05 START supplier_contact_generator
+2025-07-08 15:32:08 supplier_contact_generator: unknown ASIN B0MOCK001 (not in product_results.csv)
+2025-07-08 15:32:08 supplier_contact_generator: unknown ASIN B0MOCK002 (not in product_results.csv)
+2025-07-08 15:32:08 supplier_contact_generator: unknown ASIN B0MOCK003 (not in product_results.csv)
+2025-07-08 15:32:09 downgrading model to gpt-3.5-turbo for ASIN B0MOCK001
+2025-07-08 15:32:11 supplier_contact_generator: using fallback message for B0MOCK001
+2025-07-08 15:32:11 downgrading model to gpt-3.5-turbo for ASIN B0MOCK002
+2025-07-08 15:32:12 supplier_contact_generator: using fallback message for B0MOCK002
+2025-07-08 15:32:13 downgrading model to gpt-3.5-turbo for ASIN B0MOCK003
+2025-07-08 15:32:14 supplier_contact_generator: using fallback message for B0MOCK003
+2025-07-08 15:32:15 RESULT supplier_contact_generator completed 9.9s
+2025-07-08 15:32:15 START pricing_simulator
+2025-07-08 15:32:19 pricing_simulator: ASIN mismatch B0MOCK001,B0MOCK002,B0MOCK003
+2025-07-08 15:32:19 RESULT pricing_simulator completed 4.2s
+2025-07-08 15:32:19 WARNING empty_output data\pricing_suggestions.csv
+2025-07-08 15:32:19 START inventory_management
+2025-07-08 15:32:20 inventory_management: ASIN mismatch B0MOCK001,B0MOCK002,B0MOCK003
+2025-07-08 15:32:20 RESULT inventory_management completed 0.9s
+2025-07-08 15:32:20 WARNING empty_output data\inventory_management_results.csv
+2025-07-08 15:32:20 RESULT negotiation_agent skipped 0s service
+2025-07-08 15:32:20 RESULT email_manager skipped 0s service
+2025-07-08 15:32:20 START order_placement_agent
+2025-07-08 16:10:34 supplier_contact_generator: unknown ASIN B0MOCK001 (not in product_results.csv)
+2025-07-08 16:10:34 supplier_contact_generator: unknown ASIN B0MOCK002 (not in product_results.csv)
+2025-07-08 16:10:34 supplier_contact_generator: unknown ASIN B0MOCK003 (not in product_results.csv)
+2025-07-08 16:10:37 downgrading model to gpt-3.5-turbo for ASIN B0MOCK001
+2025-07-08 16:10:39 supplier_contact_generator: using fallback message for B0MOCK001
+2025-07-08 16:10:39 downgrading model to gpt-3.5-turbo for ASIN B0MOCK002
+2025-07-08 16:10:42 supplier_contact_generator: using fallback message for B0MOCK002
+2025-07-08 16:10:44 downgrading model to gpt-3.5-turbo for ASIN B0MOCK003
+2025-07-08 16:10:46 supplier_contact_generator: using fallback message for B0MOCK003
+2025-07-08 16:10:49 supplier_contact_generator: unknown ASIN B0MOCK001 (not in product_results.csv)
+2025-07-08 16:10:49 supplier_contact_generator: unknown ASIN B0MOCK002 (not in product_results.csv)
+2025-07-08 16:10:49 supplier_contact_generator: unknown ASIN B0MOCK003 (not in product_results.csv)
+2025-07-08 16:10:50 downgrading model to gpt-3.5-turbo for ASIN B0MOCK001
+2025-07-08 16:10:52 supplier_contact_generator: using fallback message for B0MOCK001
+2025-07-08 16:10:52 downgrading model to gpt-3.5-turbo for ASIN B0MOCK002
+2025-07-08 16:10:57 supplier_contact_generator: using fallback message for B0MOCK002
+2025-07-08 16:10:57 downgrading model to gpt-3.5-turbo for ASIN B0MOCK003
+2025-07-08 16:10:59 supplier_contact_generator: using fallback message for B0MOCK003
