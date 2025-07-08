@@ -431,17 +431,14 @@ def pipeline_ui() -> None:
                         display_supplier_selection()
                     elif label == "Generate Supplier Emails":
                         supplier_messages_dir = "supplier_messages"
-                        # --- NUEVO: Bloque siempre visible para mensajes a proveedores ---
-                        # Obtener lista de productos (archivos .txt)
+                        # --- SIEMPRE mostrar el editor de mensajes a proveedores ---
                         product_files = [f for f in sorted(os.listdir(supplier_messages_dir)) if f.endswith('.txt')] if os.path.exists(supplier_messages_dir) else []
                         product_options = [(f, f) for f in product_files]
-                        # Selector de producto
                         st.subheader("Supplier Message Editor")
                         selected_product = st.selectbox(
                             "Select product", options=product_options, format_func=lambda x: x[0] if x else "",
                             index=0 if product_options else None, key="product_selector"
                         ) if product_options else None
-                        # Cargar mensaje o plantilla
                         if selected_product:
                             msg_path = os.path.join(supplier_messages_dir, selected_product[0])
                             try:
@@ -451,13 +448,10 @@ def pipeline_ui() -> None:
                                 content = ""
                         else:
                             content = "ASIN: B0EXAMPLE\nTitle: Example Product\n\nDear Supplier,\nPlease provide your best quote for 100 units of Example Product."
-                        # Editor de texto
                         editor_key = f"editor_{selected_product[0]}" if selected_product else "editor_template"
                         edited_msg = st.text_area("Message", content, height=200, key=editor_key, disabled=not selected_product)
-                        # Campo de instrucción para ChatGPT
                         instruction_key = f"instruction_{selected_product[0]}" if selected_product else "instruction_template"
                         instruction = st.text_input("Instruction for ChatGPT (e.g. 'Make it more formal, add a professional signature')", key=instruction_key, disabled=not selected_product)
-                        # Botones debajo del editor
                         col_btn1, col_btn2, col_btn3 = st.columns([1,1,1])
                         with col_btn1:
                             if st.button("Save message", key=f"save_{selected_product[0]}" if selected_product else "save_template", disabled=not selected_product):
@@ -471,7 +465,6 @@ def pipeline_ui() -> None:
                             if st.button("Improve with ChatGPT", key=f"improve_{selected_product[0]}" if selected_product else "improve_template", disabled=not selected_product):
                                 import openai
                                 openai.api_key = os.getenv("OPENAI_API_KEY")
-                                # Extraer ASIN y título si están en el mensaje
                                 asin = selected_product[0] if selected_product else "B0EXAMPLE"
                                 title = ""
                                 for line in content.splitlines():
@@ -491,7 +484,6 @@ def pipeline_ui() -> None:
                                     st.session_state[f"improved_{selected_product[0]}"] = improved
                                 except Exception as e:
                                     st.session_state[f"improved_{selected_product[0]}"] = f"[Error: {e}]"
-                        # Mostrar sugerencia de ChatGPT si existe
                         improved = st.session_state.get(f"improved_{selected_product[0]}", "") if selected_product else ""
                         if improved:
                             st.text_area(f"ChatGPT suggestion", improved, height=200, key=f"suggestion_{selected_product[0]}" if selected_product else "suggestion_template")
@@ -505,8 +497,7 @@ def pipeline_ui() -> None:
             else:
                 prereqs_met = False
 
-    # Mostrar mensajes de proveedores y resumen al final
-    show_messages(fba_agent.OUTPUTS["supplier_contact_generator"])
+    # Mostrar solo el resumen al final (los mensajes ya están en el nuevo bloque)
     st.header("Summary")
     summary_screen()
 
