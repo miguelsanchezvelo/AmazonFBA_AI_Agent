@@ -16,55 +16,20 @@ from typing import List, Dict, Optional
 DATA_DIR = "data"
 MSG_DIR = "supplier_messages"
 
+# --- Productos mock y reales para variedad ---
 MOCK_ASINS = [
     ("B0MOCK001", "Mock Product 1"),
     ("B0MOCK002", "Mock Product 2"),
     ("B0MOCK003", "Mock Product 3"),
-    ("B0MOCK004", "Mock Product 4"),
-    ("B0MOCK005", "Mock Product 5"),
 ]
-
-PRODUCTS = [
-    {
-        "asin": MOCK_ASINS[0][0],
-        "title": MOCK_ASINS[0][1],
-        "price": 25.99,
-        "rating": 4.7,
-        "reviews": 820,
-        "bsr": 350,
-    },
-    {
-        "asin": MOCK_ASINS[1][0],
-        "title": MOCK_ASINS[1][1],
-        "price": 32.50,
-        "rating": 4.6,
-        "reviews": 560,
-        "bsr": 450,
-    },
-    {
-        "asin": MOCK_ASINS[2][0],
-        "title": MOCK_ASINS[2][1],
-        "price": 40.00,
-        "rating": 4.2,
-        "reviews": 210,
-        "bsr": 900,
-    },
-    {
-        "asin": MOCK_ASINS[3][0],
-        "title": MOCK_ASINS[3][1],
-        "price": 23.99,
-        "rating": 4.1,
-        "reviews": 150,
-        "bsr": 1200,
-    },
-    {
-        "asin": MOCK_ASINS[4][0],
-        "title": MOCK_ASINS[4][1],
-        "price": 18.50,
-        "rating": 4.5,
-        "reviews": 300,
-        "bsr": 1400,
-    },
+REAL_ASINS = [
+    ("B08K3RCTVJ", "Baby Shark Collection"),
+    ("B0161VA394", "BabyFirst Art Music"),
+    ("B09FYTG37V", "Adjustable Dumbbells"),
+]
+ALL_PRODUCTS = [
+    {"asin": a, "title": t, "price": 25.99 + i*5, "rating": 4.7-i*0.2, "reviews": 800-i*100, "bsr": 350+i*200}
+    for i, (a, t) in enumerate(MOCK_ASINS + REAL_ASINS)
 ]
 
 SHIPPING = 2.50
@@ -107,29 +72,27 @@ def demand_level(sales: int) -> str:
     return "LOW"
 
 
-def generate_product_results() -> List[Dict[str, object]]:
+def generate_product_results_var():
     rows = []
-    for i, p in enumerate(PRODUCTS):
-        margin = round(p["price"] * 0.25, 2)
+    for i, p in enumerate(ALL_PRODUCTS):
+        margin = round(p["price"] * (0.25 if i%2==0 else 0.1), 2)
         units = 40 + i * 5
         total_profit = round(margin * units, 2)
-        rows.append(
-            {
-                "title": p["title"],
-                "asin": p["asin"],
-                "estimated_asin": "",
-                "price": p["price"],
-                "margin": margin,
-                "units": units,
-                "total_profit": total_profit,
-            }
-        )
+        rows.append({
+            "title": p["title"],
+            "asin": p["asin"],
+            "estimated_asin": "",
+            "price": p["price"],
+            "margin": margin,
+            "units": units,
+            "total_profit": total_profit,
+        })
     return rows
 
 
 def generate_market_analysis() -> List[Dict[str, object]]:
     rows = []
-    for p in PRODUCTS:
+    for p in ALL_PRODUCTS:
         potential = "HIGH" if p["rating"] >= 4.5 else "MEDIUM"
         rows.append(
             {
@@ -150,7 +113,7 @@ def generate_market_analysis() -> List[Dict[str, object]]:
 
 def generate_review_analysis() -> List[Dict[str, str]]:
     rows = []
-    for p in PRODUCTS:
+    for p in ALL_PRODUCTS:
         rows.append(
             {
                 "asin": p["asin"],
@@ -163,44 +126,49 @@ def generate_review_analysis() -> List[Dict[str, str]]:
     return rows
 
 
-def generate_profitability() -> List[Dict[str, object]]:
+def generate_profitability_var():
     rows = []
-    for p in PRODUCTS:
-        cost = round(p["price"] * 0.55, 2)
+    for i, p in enumerate(ALL_PRODUCTS):
+        cost = round(p["price"] * (0.55 if i%2==0 else 0.9), 2)
         fba_fees = round(p["price"] * 0.15 + 3.0, 2)
         profit = round(p["price"] - cost - SHIPPING - fba_fees, 2)
-        roi = round(profit / (cost + SHIPPING + fba_fees), 2)
-        score = "HIGH" if roi >= 0.3 else "MEDIUM"
-        rows.append(
-            {
-                "asin": p["asin"],
-                "title": p["title"],
-                "price": p["price"],
-                "cost": cost,
-                "fba_fees": fba_fees,
-                "shipping": SHIPPING,
-                "profit": profit,
-                "roi": roi,
-                "score": score,
-            }
-        )
+        roi = round(profit / (cost + SHIPPING + fba_fees), 2) if (cost + SHIPPING + fba_fees) > 0 else 0
+        score = "HIGH" if roi >= 0.3 else ("MEDIUM" if roi >= 0.15 else "LOW")
+        viable = "YES" if roi >= 0.15 and profit > 0 else "NO"
+        rows.append({
+            "asin": p["asin"],
+            "title": p["title"],
+            "price": p["price"],
+            "cost": cost,
+            "fba_fees": fba_fees,
+            "shipping": SHIPPING,
+            "profit": profit,
+            "roi": roi,
+            "score": score,
+            "Viable": viable,
+        })
     return rows
 
 
-def generate_demand(rows_market: List[Dict[str, object]]) -> List[Dict[str, object]]:
+def generate_demand_var():
     rows = []
-    for p in rows_market:
+    for i, p in enumerate(ALL_PRODUCTS):
         sales = estimate_sales(int(p["bsr"]))
         level = demand_level(sales)
-        rows.append(
-            {
-                "asin": p["asin"],
-                "title": p["title"],
-                "bsr": p["bsr"],
-                "est_monthly_sales": sales,
-                "demand_level": level,
-            }
-        )
+        # Forzar variedad
+        if i == 0:
+            level = "HIGH"
+        elif i == 1:
+            level = "MEDIUM"
+        elif i == 2:
+            level = "LOW"
+        rows.append({
+            "asin": p["asin"],
+            "title": p["title"],
+            "bsr": p["bsr"],
+            "est_monthly_sales": sales,
+            "demand_level": level,
+        })
     return rows
 
 
@@ -292,154 +260,140 @@ def generate_message_files(selection_rows: List[Dict[str, object]], overwrite: b
             f.write(text)
 
 
+def file_exists_and_has_data(path):
+    return os.path.exists(path) and os.path.getsize(path) > 0
+
+
 def main(argv: Optional[List[str]] = None) -> None:
-    parser = argparse.ArgumentParser(description="Generate mock data for the full pipeline")
-    parser.add_argument(
-        "--full",
-        action="store_true",
-        help="overwrite existing files instead of keeping them",
-    )
+    parser = argparse.ArgumentParser(description="Generate mock data for the full pipeline (varied)")
     args = parser.parse_args(argv)
-
     ensure_dirs()
-    overwrite = True
 
-    product_rows = generate_product_results()
-    write_csv(
-        os.path.join(DATA_DIR, "product_results.csv"),
-        ["title", "asin", "estimated_asin", "price", "margin", "units", "total_profit"],
-        product_rows,
-        overwrite,
-    )
+    # PRODUCT RESULTS
+    prod_path = os.path.join(DATA_DIR, "product_results.csv")
+    if not file_exists_and_has_data(prod_path):
+        product_rows = generate_product_results_var()
+        write_csv(
+            prod_path,
+            ["title", "asin", "estimated_asin", "price", "margin", "units", "total_profit"],
+            product_rows,
+            overwrite=True,
+        )
 
-    market_rows = generate_market_analysis()
-    write_csv(
-        os.path.join(DATA_DIR, "market_analysis_results.csv"),
-        [
-            "asin",
-            "title",
-            "price",
-            "rating",
-            "reviews",
-            "bsr",
-            "link",
-            "source",
-            "estimated",
-            "potential",
-        ],
-        market_rows,
-        overwrite,
-    )
+    # PROFITABILITY
+    profit_path = os.path.join(DATA_DIR, "profitability_estimation_results.csv")
+    if not file_exists_and_has_data(profit_path):
+        profit_rows = generate_profitability_var()
+        write_csv(
+            profit_path,
+            ["asin", "title", "price", "cost", "fba_fees", "shipping", "profit", "roi", "score", "Viable"],
+            profit_rows,
+            overwrite=True,
+        )
 
-    review_rows = generate_review_analysis()
-    write_csv(
-        os.path.join(DATA_DIR, "review_analysis_results.csv"),
-        ["asin", "title", "positives", "negatives", "diffs"],
-        review_rows,
-        overwrite,
-    )
+    # DEMAND
+    demand_path = os.path.join(DATA_DIR, "demand_forecast_results.csv")
+    if not file_exists_and_has_data(demand_path):
+        demand_rows = generate_demand_var()
+        write_csv(
+            demand_path,
+            ["asin", "title", "bsr", "est_monthly_sales", "demand_level"],
+            demand_rows,
+            overwrite=True,
+        )
 
-    profit_rows = generate_profitability()
-    for row in profit_rows:
-        row["score"] = "HIGH"
-        row["roi"] = max(row["roi"], 0.35)
-        row["profit"] = max(row["profit"], 5.0)
-    write_csv(
-        os.path.join(DATA_DIR, "profitability_estimation_results.csv"),
-        [
-            "asin",
-            "title",
-            "price",
-            "cost",
-            "fba_fees",
-            "shipping",
-            "profit",
-            "roi",
-            "score",
-        ],
-        profit_rows,
-        overwrite,
-    )
+    # SUPPLIER SELECTION: solo productos viables
+    sel_path = os.path.join(DATA_DIR, "supplier_selection_results.csv")
+    if not file_exists_and_has_data(sel_path):
+        profit_rows = generate_profitability_var()
+        demand_rows = generate_demand_var()
+        selection_rows = []
+        for p in profit_rows:
+            if p["Viable"] == "YES":
+                d = next((d for d in demand_rows if d["asin"] == p["asin"]), None)
+                units = 25 if d else 10
+                selection_rows.append({
+                    "asin": p["asin"],
+                    "title": p["title"],
+                    "price": p["price"],
+                    "cost": p["cost"],
+                    "roi": p["roi"],
+                    "temporal_roi": p["roi"]*4,
+                    "demand": d["demand_level"] if d else "LOW",
+                    "units_to_order": units,
+                    "total_cost": units*p["cost"],
+                    "estimated_profit": units*p["profit"],
+                })
+        write_csv(
+            sel_path,
+            ["asin", "title", "price", "cost", "roi", "temporal_roi", "demand", "units_to_order", "total_cost", "estimated_profit"],
+            selection_rows,
+            overwrite=True,
+        )
 
-    demand_rows = generate_demand(market_rows)
-    for row in demand_rows:
-        row["demand_level"] = "HIGH"
-        row["est_monthly_sales"] = max(row["est_monthly_sales"], 500)
-    write_csv(
-        os.path.join(DATA_DIR, "demand_forecast_results.csv"),
-        ["asin", "title", "bsr", "est_monthly_sales", "demand_level"],
-        demand_rows,
-        overwrite,
-    )
+    # PRICING: solo productos viables
+    pricing_path = os.path.join(DATA_DIR, "pricing_suggestions.csv")
+    if not file_exists_and_has_data(pricing_path):
+        profit_rows = generate_profitability_var()
+        pricing_rows = []
+        for p in profit_rows:
+            if p["Viable"] == "YES":
+                pricing_rows.append({
+                    "ASIN": p["asin"],
+                    "Title": p["title"],
+                    "Suggested Price": p["price"]+1.0,
+                    "Notes": "Introductory pricing",
+                })
+        write_csv(
+            pricing_path,
+            ["ASIN", "Title", "Suggested Price", "Notes"],
+            pricing_rows,
+            overwrite=True,
+        )
 
-    selection_rows = generate_supplier_selection(profit_rows, demand_rows)
-    asins_in_selection = set(row["asin"] for row in selection_rows)
-    for p in PRODUCTS:
-        if p["asin"] not in asins_in_selection:
-            selection_rows.append({
-                "asin": p["asin"],
-                "title": p["title"],
-                "price": 20.0,
-                "cost": 8.0,
-                "roi": 0.4,
-                "temporal_roi": 1.6,
-                "demand": "HIGH",
-                "units_to_order": 25,
-                "total_cost": 200.0,
-                "estimated_profit": 100.0,
+    # INVENTORY: todos los productos seleccionados
+    inv_path = os.path.join(DATA_DIR, "inventory_management_results.csv")
+    if not file_exists_and_has_data(inv_path):
+        sel_rows = []
+        if os.path.exists(sel_path):
+            with open(sel_path, "r", encoding="utf-8") as f:
+                reader = csv.DictReader(f)
+                sel_rows = list(reader)
+        inventory_rows = []
+        for s in sel_rows:
+            recommended = int(float(s["units_to_order"]) * 1.25)
+            stock_cost = round(recommended * float(s["cost"]), 2)
+            proj_value = round(recommended * float(s["price"]), 2)
+            inventory_rows.append({
+                "asin": s["asin"],
+                "title": s["title"],
+                "recommended_stock": recommended,
+                "stock_cost": stock_cost,
+                "projected_value": proj_value,
             })
-    write_csv(
-        os.path.join(DATA_DIR, "supplier_selection_results.csv"),
-        [
-            "asin",
-            "title",
-            "price",
-            "cost",
-            "roi",
-            "temporal_roi",
-            "demand",
-            "units_to_order",
-            "total_cost",
-            "estimated_profit",
-        ],
-        selection_rows,
-        overwrite,
-    )
+        write_csv(
+            inv_path,
+            ["asin", "title", "recommended_stock", "stock_cost", "projected_value"],
+            inventory_rows,
+            overwrite=True,
+        )
 
-    pricing_rows = generate_pricing(profit_rows)
-    asins_in_pricing = set(row["ASIN"] for row in pricing_rows)
-    for p in PRODUCTS:
-        if p["asin"] not in asins_in_pricing:
-            pricing_rows.append({
-                "ASIN": p["asin"],
-                "Title": p["title"],
-                "Suggested Price": 21.0,
-                "Notes": "Introductory pricing",
-            })
-    write_csv(
-        os.path.join(DATA_DIR, "pricing_suggestions.csv"),
-        ["ASIN", "Title", "Suggested Price", "Notes"],
-        pricing_rows,
-        overwrite,
-    )
-
-    inventory_rows = generate_inventory(selection_rows)
-    write_csv(
-        os.path.join(DATA_DIR, "inventory_management_results.csv"),
-        ["asin", "title", "recommended_stock", "stock_cost", "projected_value"],
-        inventory_rows,
-        overwrite,
-    )
-
-    # Create supplier emails and message files
-    emails = generate_emails(selection_rows)
-    email_path = os.path.join(DATA_DIR, "supplier_emails.txt")
-    with open(email_path, "w", encoding="utf-8") as f:
-        f.write(emails)
-
-    generate_message_files(selection_rows, overwrite)
-
-    print("Mock data written to 'data/' and 'supplier_messages/' (all files overwritten for consistency).\nAll ASINs are present and all modules can be tested with these mock data.")
+    # MENSAJES DE PROVEEDOR: solo productos seleccionados
+    if os.path.exists(sel_path):
+        with open(sel_path, "r", encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            sel_rows = list(reader)
+        for row in sel_rows:
+            asin = row["asin"]
+            text = (
+                f"Hello,\nWe are interested in purchasing {row['units_to_order']} units of {row['title']}.\n"
+                "Please send pricing and lead time information.\n"
+            )
+            path = os.path.join(MSG_DIR, f"{asin}.txt")
+            if not os.path.exists(path) or os.path.getsize(path) == 0:
+                with open(path, "w", encoding="utf-8") as f:
+                    f.write(text)
+    print("Varied mock data written to 'data/' and 'supplier_messages/' (no overwrite if file exists). Includes viable/non-viable, mock/real, and edge cases.")
 
 
 if __name__ == "__main__":
