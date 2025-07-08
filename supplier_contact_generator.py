@@ -104,8 +104,7 @@ def load_products(path: str) -> List[Dict[str, str]]:
             asin = (row.get("asin") or row.get("ASIN") or "").strip()
             title = (row.get("title") or row.get("Title") or "").strip()
             if valid and asin and asin not in valid:
-                log(f"supplier_contact_generator: unknown ASIN {asin}")
-                continue
+                log(f"supplier_contact_generator: unknown ASIN {asin} (not in product_results.csv)")
             rows.append({"asin": asin or "UNKNOWN", "title": title})
     return rows
 
