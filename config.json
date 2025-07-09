@@ -1,0 +1,10 @@
+{
+  "serpapi_key": "2d6f554796e109f4ad93216f5b8c44407db269d1433dd3fb61f309c4017415f5",
+  "keepa_key": "YOUR_KEEPA_KEY",
+  "openai_key": "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",
+  "gmail_key": "YOUR_GMAIL_KEY",
+  "amazon_key": "YOUR_AMAZON_KEY",
+  "email_provider": "gmail",
+  "email_address": "fba.mock.agent@gmail.com",
+  "email_password": "pyfs ommx fmwe dpis"
+}

@@ -1,4 +1,8 @@
 {
     "serpapi_key": "YOUR_SERPAPI_KEY",
-    "keepa_key": "YOUR_KEEPA_KEY"
+    "keepa_key": "YOUR_KEEPA_KEY",
+    "openai_key": "YOUR_OPENAI_KEY",
+    "gmail_key": "YOUR_GMAIL_KEY",
+    "amazon_key": "YOUR_AMAZON_KEY",
+    "email_provider": "gmail"
 }

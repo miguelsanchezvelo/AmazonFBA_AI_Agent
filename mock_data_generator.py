@@ -12,6 +12,7 @@ import argparse
 import csv
 import os
 from typing import List, Dict, Optional
+import pandas as pd
 
 DATA_DIR = "data"
 MSG_DIR = "supplier_messages"
@@ -264,10 +265,36 @@ def file_exists_and_has_data(path):
     return os.path.exists(path) and os.path.getsize(path) > 0
 
 
+def clean_mock_files():
+    files = [
+        "product_results.csv",
+        "market_analysis_results.csv",
+        "review_analysis_results.csv",
+        "profitability_estimation_results.csv",
+        "demand_forecast_results.csv",
+        "supplier_selection_results.csv",
+        "pricing_suggestions.csv",
+        "inventory_management_results.csv",
+        "supplier_emails.txt",
+    ]
+    for fname in files:
+        fpath = os.path.join(DATA_DIR, fname)
+        if os.path.exists(fpath):
+            os.remove(fpath)
+    # Limpia mensajes mock
+    if os.path.exists(MSG_DIR):
+        for f in os.listdir(MSG_DIR):
+            if f.startswith("B0MOCK") and f.endswith(".txt"):
+                os.remove(os.path.join(MSG_DIR, f))
+
+
 def main(argv: Optional[List[str]] = None) -> None:
     parser = argparse.ArgumentParser(description="Generate mock data for the full pipeline (varied)")
+    parser.add_argument('--clean', action='store_true', help='Remove mock data files before generating')
     args = parser.parse_args(argv)
     ensure_dirs()
+    if args.clean:
+        clean_mock_files()
 
     # PRODUCT RESULTS
     prod_path = os.path.join(DATA_DIR, "product_results.csv")
@@ -279,6 +306,14 @@ def main(argv: Optional[List[str]] = None) -> None:
             product_rows,
             overwrite=True,
         )
+    else:
+        # Si existe, añade los mock si no están
+        df = pd.read_csv(prod_path)
+        existing_asins = set(df['asin'])
+        mock_rows = [row for row in generate_product_results_var() if row['asin'] not in existing_asins]
+        if mock_rows:
+            df = pd.concat([df, pd.DataFrame(mock_rows)], ignore_index=True)
+            df.to_csv(prod_path, index=False)
 
     # PROFITABILITY
     profit_path = os.path.join(DATA_DIR, "profitability_estimation_results.csv")
@@ -331,18 +366,27 @@ def main(argv: Optional[List[str]] = None) -> None:
             overwrite=True,
         )
 
-    # PRICING: solo productos viables
+    # PRICING: todos los productos viables (mock y reales)
     pricing_path = os.path.join(DATA_DIR, "pricing_suggestions.csv")
     if not file_exists_and_has_data(pricing_path):
         profit_rows = generate_profitability_var()
         pricing_rows = []
-        for p in profit_rows:
+        notes_options = [
+            "Introductory pricing",
+            "Matches top competitor",
+            "Maximizes ROI",
+            "Discounted for launch",
+            "Price matched to market"
+        ]
+        for i, p in enumerate(profit_rows):
             if p["Viable"] == "YES":
+                note = notes_options[i % len(notes_options)]
+                suggested_price = round(float(p["price"]) + 2.0 - (i % 3), 2)
                 pricing_rows.append({
                     "ASIN": p["asin"],
                     "Title": p["title"],
-                    "Suggested Price": p["price"]+1.0,
-                    "Notes": "Introductory pricing",
+                    "Suggested Price": suggested_price,
+                    "Notes": note,
                 })
         write_csv(
             pricing_path,
