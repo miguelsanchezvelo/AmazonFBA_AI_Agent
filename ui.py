@@ -6,13 +6,32 @@ from typing import List, Tuple, Dict
 import openai
 import csv
 import json
+import streamlit as st
+import pandas as pd
+import plotly.express as px
+import numpy as np
+from statsmodels.tsa.holtwinters import ExponentialSmoothing
+import imaplib
+import email
+from email.header import decode_header
+from email.utils import parseaddr
+import datetime
+import base64
+import tempfile
+import smtplib
+from email.message import EmailMessage
+import importlib
+import pkg_resources
+import io
+import plotly.figure_factory as ff
+from prophet import Prophet
+from sklearn.metrics import mean_absolute_error, mean_squared_error
+import plotly.graph_objects as go
+import kdp_module
 
 # Absolute path to the repository root so modules are executed
 # consistently regardless of the working directory.
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
-
-import streamlit as st
-import pandas as pd
 
 import fba_agent
 
@@ -37,6 +56,29 @@ MODULES: List[Tuple[str, str]] = [
     ("Simulate Pricing Strategy", "pricing_simulator.py"),
     ("Manage Inventory", "inventory_management.py"),
 ]
+
+FRIENDLY_LABELS = {
+    'en': {
+        'Run Product Discovery': 'Product Discovery',
+        'Run Market Analysis': 'Market Analysis',
+        'Run Profitability Estimation': 'Profitability Estimation',
+        'Run Demand Forecast': 'Demand Forecast',
+        'Run Supplier Selection': 'Supplier Selection',
+        'Generate Supplier Emails': 'Supplier Emails',
+        'Simulate Pricing Strategy': 'Pricing Simulator',
+        'Manage Inventory': 'Inventory Management',
+    },
+    'es': {
+        'Run Product Discovery': 'Descubrimiento de productos',
+        'Run Market Analysis': 'Análisis de mercado',
+        'Run Profitability Estimation': 'Estimación de rentabilidad',
+        'Run Demand Forecast': 'Predicción de demanda',
+        'Run Supplier Selection': 'Selección de proveedores',
+        'Generate Supplier Emails': 'Emails a proveedores',
+        'Simulate Pricing Strategy': 'Simulador de precios',
+        'Manage Inventory': 'Gestión de inventario',
+    }
+}
 
 # --- NUEVO: Diccionario de traducción para mensajes clave ---
 TRANSLATIONS = {
@@ -111,6 +153,34 @@ TRANSLATIONS = {
         'no_product_selected': 'No product selected.',
         'reset_pipeline_confirm': 'Reset Pipeline (delete all generated data)',
         'env_setup_log': 'Environment Setup Log',
+        'amazon_fba_ai_agent': 'Amazon FBA AI Agent',
+        'running_full_pipeline': 'Running the full pipeline...',
+        'demand_analysis': 'Demand Analysis',
+        'estimated_demand': 'Estimated Demand',
+        'real_demand': 'Real Demand (units sold)',
+        'forecast_error': 'Forecast Error',
+        'correction_factor': 'Correction Factor',
+        'suggested_next_forecast': 'Suggested Next Forecast',
+        'select_forecasting_method': 'Select forecasting method',
+        'correction_factor_method': 'Correction Factor Method:',
+        'not_enough_data': 'Not enough data to compute demand adjustment.',
+        'exp_smoothing': 'Simple Exponential Smoothing (α=0.5):',
+        'holt_winters_forecast': 'Holt-Winters (Seasonal) Forecast:',
+        'prophet_forecast': 'Prophet (AI) Forecast:',
+        'no_sales_history': 'No sales history available for this product.',
+        'not_enough_data_hw': 'Not enough data for Holt-Winters (need at least 6 periods).',
+        'not_enough_data_prophet': 'Not enough data for Prophet (need at least 6 periods).',
+        'description': 'Description:',
+        'when_to_use': 'When to use:',
+        'select_method': 'Select forecasting method',
+        'correction_desc': 'Adjusts the forecast by multiplying by the ratio between real and estimated demand. Useful for quick corrections when there is no trend or seasonality.',
+        'correction_rec': 'Recommended if you have little historical data or demand is stable.',
+        'exp_smoothing_desc': 'Simple exponential smoothing: combines the last real demand and the last forecast. Useful for series without trend or seasonality.',
+        'exp_smoothing_rec': 'Recommended for products with stable demand and no seasonal patterns.',
+        'holt_winters_desc': 'Holt-Winters: advanced model that adjusts forecasts considering trend and seasonality. Requires several periods of data.',
+        'holt_winters_rec': 'Recommended if you detect seasonal peaks or clear trends in sales.',
+        'prophet_desc': 'Prophet (Meta): AI model for time series, robust to seasonality and outliers. Easy to use and very interpretable.',
+        'prophet_rec': 'Recommended to compare with classic methods and validate forecast robustness.',
     },
     'es': {
         'run_all': 'Ejecutar Todo',
@@ -183,6 +253,34 @@ TRANSLATIONS = {
         'no_product_selected': 'Ningún producto seleccionado.',
         'reset_pipeline_confirm': 'Reiniciar Pipeline (eliminar todos los datos generados)',
         'env_setup_log': 'Log de instalación del entorno',
+        'amazon_fba_ai_agent': 'Amazon FBA AI Agent',
+        'running_full_pipeline': 'Ejecutando toda la pipeline...',
+        'demand_analysis': 'Análisis de demanda',
+        'estimated_demand': 'Demanda estimada',
+        'real_demand': 'Demanda real (unidades vendidas)',
+        'forecast_error': 'Error de previsión',
+        'correction_factor': 'Factor de corrección',
+        'suggested_next_forecast': 'Siguiente previsión sugerida',
+        'select_forecasting_method': 'Selecciona método de forecasting',
+        'correction_factor_method': 'Método de factor de corrección:',
+        'not_enough_data': 'No hay suficientes datos para ajustar la demanda.',
+        'exp_smoothing': 'Suavizado exponencial simple (α=0.5):',
+        'holt_winters_forecast': 'Previsión Holt-Winters (estacional):',
+        'prophet_forecast': 'Previsión Prophet (IA):',
+        'no_sales_history': 'No hay historial de ventas para este producto.',
+        'not_enough_data_hw': 'No hay suficientes datos para Holt-Winters (mínimo 6 periodos).',
+        'not_enough_data_prophet': 'No hay suficientes datos para Prophet (mínimo 6 periodos).',
+        'description': 'Descripción:',
+        'when_to_use': 'Cuándo usar:',
+        'select_method': 'Selecciona método de forecasting',
+        'correction_desc': 'Ajusta la previsión multiplicando por el ratio entre demanda real y estimada. Útil para correcciones rápidas cuando no hay tendencia ni estacionalidad.',
+        'correction_rec': 'Recomendado si tienes pocos datos históricos o la demanda es estable.',
+        'exp_smoothing_desc': 'Suavizado exponencial simple: combina la última demanda real y la última previsión. Útil para series sin tendencia ni estacionalidad.',
+        'exp_smoothing_rec': 'Recomendado para productos con demanda estable y sin patrones estacionales.',
+        'holt_winters_desc': 'Holt-Winters: modelo avanzado que ajusta previsiones considerando tendencia y estacionalidad. Requiere varios periodos de datos.',
+        'holt_winters_rec': 'Recomendado si detectas picos estacionales o tendencias claras en las ventas.',
+        'prophet_desc': 'Prophet (Meta): modelo de IA para series temporales, robusto ante estacionalidad y outliers. Fácil de usar y muy interpretativo.',
+        'prophet_rec': 'Recomendado para comparar con métodos clásicos y validar la robustez del forecast.',
     }
 }
 
@@ -191,6 +289,7 @@ CONFIG_EXAMPLE_PATH = "config.example.json"
 API_KEYS = [
     ("serpapi_key", "SerpAPI Key"),
     ("keepa_key", "Keepa Key"),
+    ("helium10_key", "Helium 10 Key"),
     ("openai_key", "OpenAI Key"),
     ("gmail_key", "Gmail Key"),
     ("amazon_key", "Amazon Key"),
@@ -434,7 +533,6 @@ def summary_screen() -> None:
     st.metric(t('total_profit'), f"${total_profit:,.2f}")
     # --- NUEVO: Comprobar si plotly está instalado antes de graficar ---
     try:
-        import plotly.express as px
         if "roi" in df.columns and "asin" in df.columns:
             fig = px.bar(df, x="asin", y="roi", title=t('roi_per_product'))
             st.plotly_chart(fig, use_container_width=True)
@@ -460,11 +558,15 @@ def run_prepare_environment() -> str:
 
 
 def pipeline_ui() -> None:
+    # Inicialización universal para evitar errores de variable no definida
+    stock_in = 0
+    stock_out = 0
+    stock_actual = 0
     st.title(t('amazon_fba_ai_agent'))
     # --- Selector de idioma en la parte superior derecha ---
     if 'lang' not in st.session_state:
         st.session_state['lang'] = 'en'
-    lang = st.sidebar.selectbox(t('language_selector'), options=[('en', 'English'), ('es', 'Español')], format_func=lambda x: x[1], index=0 if st.session_state['lang']=='en' else 1)
+    lang = st.sidebar.selectbox('Language', options=[('en', 'English'), ('es', 'Español')], format_func=lambda x: x[1], index=0 if st.session_state['lang']=='en' else 1)
     st.session_state['lang'] = lang[0]
     if "logs" not in st.session_state:
         st.session_state.logs = {label: "" for label, _ in MODULES}
@@ -477,48 +579,90 @@ def pipeline_ui() -> None:
     if "budget" not in st.session_state:
         st.session_state.budget = 1500.0
 
-    st.sidebar.title(t('configuration'))
-    dev_mode = st.sidebar.checkbox(t('dev_mode'), value=st.session_state.dev_mode)
-    st.session_state.dev_mode = dev_mode
-    budget = st.sidebar.number_input(
+    # --- Configuración de alertas en la sidebar ---
+    with st.sidebar.expander(t('configuration'), expanded=True):
+        # Cargar config actual
+        config = load_config()
+        # Developer mode y budget
+        dev_mode = st.checkbox(t('dev_mode'), value=st.session_state.dev_mode)
+        budget = st.number_input(
         t('budget'), min_value=100.0, value=st.session_state.budget, step=100.0
     )
-    st.session_state.budget = budget
-
-    # --- Gestión de llaves API ---
-    st.sidebar.markdown("---")
-    st.sidebar.subheader(t('api_keys_section'))
-    config = load_config()
-    updated = False
-    for key, label in API_KEYS:
-        val = st.sidebar.text_input(label, value=config.get(key, ""), type="password")
-        if val != config.get(key, ""):
-            config[key] = val
-            updated = True
-    provider = st.sidebar.selectbox(t('email_provider'), EMAIL_PROVIDERS, index=EMAIL_PROVIDERS.index(config.get("email_provider", "gmail")))
-    if provider != config.get("email_provider", "gmail"):
-        config["email_provider"] = provider
-        updated = True
-    # Campos de email solo si hay proveedor
-    if provider in ["gmail", "outlook", "custom_smtp"]:
-        email_address = st.sidebar.text_input(t('email_address'), value=config.get("email_address", ""))
-        if email_address != config.get("email_address", ""):
-            config["email_address"] = email_address
-            updated = True
-        email_password = st.sidebar.text_input(t('email_password'), value=config.get("email_password", ""), type="password")
-        if email_password != config.get("email_password", ""):
-            config["email_password"] = email_password
-            updated = True
-    if st.sidebar.button(t('save_api_keys')):
-        save_config(config)
-        st.sidebar.success(t('api_keys_saved'))
-    elif updated:
-        st.sidebar.info(t('unsaved_changes'))
-
+        # API Keys
+        st.markdown('**API Keys**')
+        api_key_values = {}
+        for key, label in API_KEYS:
+            is_sensitive = 'key' in key or 'password' in key
+            api_key_values[key] = st.text_input(label, value=config.get(key, ''), type='password' if is_sensitive else 'default', key=f'api_{key}')
+        # Email provider
+        st.markdown('**Email Provider**')
+        email_provider = st.selectbox(t('email_provider'), EMAIL_PROVIDERS, index=EMAIL_PROVIDERS.index(config.get('email_provider', 'gmail')) if config.get('email_provider', 'gmail') in EMAIL_PROVIDERS else 0, key='email_provider')
+        email_address = st.text_input(t('email_address'), value=config.get('email_address', ''), key='email_address')
+        email_password = st.text_input(t('email_password'), value=config.get('email_password', ''), type='password', key='email_password')
+        smtp_server = st.text_input(t('smtp_server'), value=config.get('smtp_server', 'smtp.gmail.com'), key='smtp_server')
+        smtp_port = st.number_input(t('smtp_port'), min_value=1, max_value=65535, value=int(config.get('smtp_port', 587)), step=1, key='smtp_port')
+        imap_server = st.text_input(t('imap_server'), value=config.get('imap_server', 'imap.gmail.com'), key='imap_server')
+        # Botón guardar
+        if st.button(t('save_api_keys')):
+            # Actualizar config
+            config['dev_mode'] = dev_mode
+            config['budget'] = budget
+            for key in api_key_values:
+                config[key] = api_key_values[key]
+            config['email_provider'] = email_provider
+            config['email_address'] = email_address
+            config['email_password'] = email_password
+            config['smtp_server'] = smtp_server
+            config['smtp_port'] = smtp_port
+            config['imap_server'] = imap_server
+            save_config(config)
+            # Actualizar session_state
+            st.session_state.dev_mode = dev_mode
+            st.session_state.budget = budget
+            for key in api_key_values:
+                st.session_state[key] = api_key_values[key]
+            st.session_state.email_provider = email_provider
+            st.session_state.email_address = email_address
+            st.session_state.email_password = email_password
+            st.session_state.smtp_server = smtp_server
+            st.session_state.smtp_port = smtp_port
+            st.session_state.imap_server = imap_server
+            st.success(t('api_keys_saved'))
     # --- NUEVO: Tabs principales ---
-    tabs = st.tabs(["FBA Agent", t('email_agent_instructions')])
+    tabs = st.tabs(["FBA", "Product Selection", "Product Tracker", "E-mail Management", "KDP"])
     with tabs[0]:
-        # --- Pipeline principal (solo aquí) ---
+        # --- Botones principales arriba y en horizontal ---
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            if st.button(t('run_tests')):
+                with st.spinner(t('running_tests')):
+                    out, code = run_test_all()
+                with st.expander(t('test_output'), expanded=code != 0):
+                    st.code(out)
+                st.session_state.tests_ok = code == 0
+                if st.session_state.tests_ok:
+                    st.success(t('tests_passed'))
+                else:
+                    st.error(t('tests_failed'))
+        with col2:
+            if st.button(t('validate_pipeline')):
+                with st.spinner(t('validating_pipeline')):
+                    vout, vcode = run_validate_all()
+                with st.expander(t('validation_output'), expanded=vcode != 0):
+                    st.code(vout)
+                st.session_state.validation_ok = vcode == 0
+                if st.session_state.validation_ok:
+                    st.success(t('validation_passed'))
+                else:
+                    st.error(t('validation_failed'))
+        with col3:
+            if st.button(t('run_all')):
+                with st.spinner(t('running_full_pipeline')):
+                    run_headless(auto=True)
+                st.success(t('pipeline_completed'))
+        st.divider()
+        # --- SOLO aquí va el bucle de los módulos y la pipeline ---
+        lang = st.session_state.get('lang', 'en')
         disabled = not (st.session_state.tests_ok and st.session_state.validation_ok)
         output_files = [
             ("Product Results", fba_agent.OUTPUTS["product_discovery"]),
@@ -531,11 +675,10 @@ def pipeline_ui() -> None:
         ]
         prereqs_met = True
         for idx, (label, script) in enumerate(MODULES):
-            label_key = label.lower().replace(' ', '_')
-            label_translated = t(label_key) if label_key in TRANSLATIONS[st.session_state['lang']] else label
-            with st.expander(label_translated, expanded=False):
+            friendly_label = FRIENDLY_LABELS[lang].get(label, label)
+            with st.expander(friendly_label, expanded=False):
                 is_step_disabled = disabled or not prereqs_met
-                if st.button(label_translated, key=f"btn_{script}", disabled=is_step_disabled):
+                if st.button(friendly_label, key=f"btn_fba_{script}_{idx}", disabled=is_step_disabled):
                     run_step_ui(label, script, st.session_state.budget, st.session_state.dev_mode)
                 if st.session_state.dev_mode and st.session_state.logs[label]:
                     st.text_area(t('step_log'), st.session_state.logs[label], height=150)
@@ -582,6 +725,7 @@ def pipeline_ui() -> None:
                                     title = line.split(":",1)[-1].strip()
                                     break
                             prompt = f"Product ASIN: {asin}\nProduct Title: {title}\n\nOriginal message:\n{edited_msg}\n\nInstruction: {instruction}\n\nRewrite the message accordingly, making sure it is appropriate for the product."
+                            improved = None
                             try:
                                 response = client.chat.completions.create(
                                     model="gpt-3.5-turbo",
@@ -595,11 +739,11 @@ def pipeline_ui() -> None:
                                 st.success(t('chatgpt_suggestion'))
                             except Exception as e:
                                 st.error(str(e))
-                    if improved:
-                        st.text_area(t('chatgpt_suggestion'), improved, height=200, key=f"suggestion_{selected_product[0]}" if selected_product else "suggestion_template")
-                        if st.button(t('replace_with_suggestion'), key=f"replace_{selected_product[0]}" if selected_product else "replace_template"):
-                            st.session_state[editor_key] = improved
-                            st.success(t('message_replaced'))
+                            if improved:
+                                st.text_area(t('chatgpt_suggestion'), improved, height=200, key=f"suggestion_{selected_product[0]}" if selected_product else "suggestion_template")
+                                if st.button(t('replace_with_suggestion'), key=f"replace_{selected_product[0]}" if selected_product else "replace_template"):
+                                    st.session_state[editor_key] = improved
+                                    st.success(t('message_replaced'))
                 # --- FIN bloque editor SIEMPRE visible ---
                 if idx < len(output_files):
                     out_title, out_path = output_files[idx]
@@ -617,24 +761,567 @@ def pipeline_ui() -> None:
         st.header(t('summary'))
         summary_screen()
     with tabs[1]:
-        # --- Email Management UI (Advanced, sin IA) ---
-        st.header(t('email_agent_instructions'))
-        if config.get("email_address") and config.get("email_password"):
-            import imaplib
-            import email
-            from email.header import decode_header
-            from email.utils import parseaddr
-            import datetime
-            import base64
-            import tempfile
-            import smtplib
-            from email.message import EmailMessage
-            import os
-            
-            # --- Leer emails ---
-            st.info(t('connecting_email'))
+        st.header("Product Selection")
+        # Cargar productos investigados
+        import pandas as pd
+        products_path = "data/discovery_results.csv"
+        if not os.path.exists(products_path):
+            products_path = "data/product_results.csv"
+        if os.path.exists(products_path):
+            df_products = pd.read_csv(products_path)
+            if 'ASIN' not in df_products.columns and 'asin' in df_products.columns:
+                df_products['ASIN'] = df_products['asin']
+            if 'Title' not in df_products.columns and 'title' in df_products.columns:
+                df_products['Title'] = df_products['title']
+            st.markdown("**Investigated Products:**")
+            # Inicializar selección en session_state
+            if 'selected_products' not in st.session_state:
+                st.session_state['selected_products'] = set(df_products['ASIN'].tolist())
+            # Mostrar tabla con checkboxes
+            selected = []
+            for i, row in df_products.iterrows():
+                asin = row['ASIN']
+                title = row.get('Title', asin)
+                checked = asin in st.session_state['selected_products']
+                if st.checkbox(f"{title} ({asin})", value=checked, key=f"select_{asin}"):
+                    selected.append(asin)
+            st.session_state['selected_products'] = set(selected)
+            st.success(f"Selected products: {', '.join(st.session_state['selected_products'])}")
+        else:
+            st.info("No investigated products found. Run the pipeline or generate mock data.")
+    with tabs[2]:
+        st.header("Product Tracker")
+        # --- Inicializar stock_in, stock_out y stock_actual a 0 al principio del bloque Product Tracker ---
+        stock_in = 0
+        stock_out = 0
+        stock_actual = 0
+        # --- Generación automática de pedidos sugeridos para todos los productos ---
+        st.header("Bulk Order Suggestions")
+        selected_asins = list(st.session_state.get('selected_products', []))
+        if not selected_asins:
+            st.warning("No products selected. Please select products in the 'Product Selection' tab.")
+        else:
+            if st.button("Generate suggested orders for all products", key="generate_bulk_orders"):
+                # Cargar productos desde el histórico de ventas
+                sales_path = "data/sales_history.csv"
+                if os.path.exists(sales_path):
+                    df_sales_hist = pd.read_csv(sales_path)
+                    all_asins = [asin for asin in df_sales_hist['ASIN'].unique() if asin in selected_asins]
+                else:
+                    all_asins = selected_asins
+                # Cargar datos de productos
+                try:
+                    df_products = pd.read_csv("data/discovery_results.csv")
+                except Exception:
+                    df_products = pd.DataFrame()
+                # Para cada producto seleccionado, calcular sugerencia de pedido y preparar borrador de email
+                for asin in all_asins:
+                    # Buscar datos del producto
+                    product_data = df_products[df_products['ASIN'] == asin].iloc[0].to_dict() if not df_products.empty and asin in df_products['ASIN'].values else {'ASIN': asin, 'Title': asin}
+                    # Cargar movimientos de inventario
+                    save_movements_path = "data/inventory_movements_saved.csv"
+                    if os.path.exists(save_movements_path):
+                        try:
+                            df_mov = pd.read_csv(save_movements_path)
+                            movs = df_mov[df_mov['ASIN'] == asin].copy()
+                            stock_in = 0
+                            stock_out = 0
+                            stock_actual = 0
+                            if 'movs' in locals() and hasattr(movs, 'empty') and not movs.empty:
+                                stock_in = movs[movs['Type']=='IN']['Quantity'].sum()
+                                stock_out = movs[movs['Type']=='OUT']['Quantity'].sum()
+                                stock_actual = stock_in - stock_out
+                        except Exception:
+                            movs = pd.DataFrame(columns=['ASIN','Date','Type','Quantity','Note'])
+                            stock_in = 0
+                            stock_out = 0
+                            stock_actual = 0
+                            if 'movs' in locals() and hasattr(movs, 'empty') and not movs.empty:
+                                stock_in = movs[movs['Type']=='IN']['Quantity'].sum()
+                                stock_out = movs[movs['Type']=='OUT']['Quantity'].sum()
+                                stock_actual = stock_in - stock_out
+                    else:
+                        movs = pd.DataFrame(columns=['ASIN','Date','Type','Quantity','Note'])
+                        stock_in = 0
+                        stock_out = 0
+                        stock_actual = 0
+                        if 'movs' in locals() and hasattr(movs, 'empty') and not movs.empty:
+                            stock_in = movs[movs['Type']=='IN']['Quantity'].sum()
+                            stock_out = movs[movs['Type']=='OUT']['Quantity'].sum()
+                            stock_actual = stock_in - stock_out
+                    # --- Inicializar stock_in, stock_out y stock_actual a 0 de forma universal (scope externo del bloque de detalles del producto) ---
+                    stock_in = 0
+                    stock_out = 0
+                    stock_actual = 0
+                    if 'movs' in locals() and hasattr(movs, 'empty') and not movs.empty:
+                        stock_in = movs[movs['Type']=='IN']['Quantity'].sum()
+                        stock_out = movs[movs['Type']=='OUT']['Quantity'].sum()
+                        stock_actual = stock_in - stock_out
+                    # Demanda estimada
+                    df_sales_prod = pd.read_csv(sales_path)
+                    df_sales_prod = df_sales_prod[df_sales_prod['ASIN'] == asin]
+                    if not df_sales_prod.empty:
+                        last_month = df_sales_prod['Date'].max()[:7]
+                        estimated_demand = df_sales_prod[df_sales_prod['Date'].str.startswith(last_month)]['Units_Sold'].sum()
+                    else:
+                        estimated_demand = 0
+                    daily_demand = estimated_demand / 30 if estimated_demand else 0.1
+                    # Lead time y margen (usar valores por defecto o de session_state)
+                    lead_time = 21
+                    safety_margin = 5
+                    # Fecha de agotamiento
+                    days_until_oos = int(stock_actual / daily_demand) if daily_demand > 0 else 0
+                    today = pd.Timestamp.today().normalize()
+                    date_oos = today + pd.Timedelta(days=days_until_oos) if days_until_oos else today
+                    date_order = date_oos - pd.Timedelta(days=lead_time + safety_margin)
+                    qty_suggested = int(daily_demand * lead_time * 1.5)
+                    # Solo sugerir pedido si la fecha de pedido es hoy o pasada y la cantidad es positiva
+                    if qty_suggested > 0 and date_order <= today:
+                        email_key = f'order_email_{asin}_bulk'
+                        supplier = product_data.get('Supplier', 'Supplier')
+                        product_title = product_data.get('Title', asin)
+                        supplier_emails = []
+                        if 'Supplier_Emails' in product_data and product_data['Supplier_Emails']:
+                            supplier_emails = [e.strip() for e in str(product_data['Supplier_Emails']).split(',') if e.strip()]
+                        elif 'Supplier_Email' in product_data and product_data['Supplier_Email']:
+                            supplier_emails = [product_data['Supplier_Email']]
+                        to_email = supplier_emails[0] if supplier_emails else ''
+                        subject = f"Purchase Order for {product_title} (ASIN: {asin})"
+                        body = (
+                            f"Dear {supplier},\n\n"
+                            f"We would like to place a new order for the following product:\n"
+                            f"- Product: {product_title}\n"
+                            f"- ASIN: {asin}\n"
+                            f"- Quantity: {qty_suggested} units\n"
+                            f"- Expected arrival: before {date_oos.date()}\n\n"
+                            f"Please confirm availability, lead time, and provide a proforma invoice.\n\n"
+                            f"Best regards,\nAmazon FBA Team"
+                        )
+                        st.session_state[email_key] = {
+                            'subject': subject,
+                            'body': body,
+                            'to_email': to_email,
+                            'date_order': str(date_order.date()),
+                            'qty_suggested': qty_suggested,
+                            'asin': asin,
+                            'product_title': product_title
+                        }
+            st.success("Bulk order suggestions generated.")
+        # Mostrar tabla resumen de pedidos sugeridos
+        bulk_emails = [v for k,v in st.session_state.items() if k.startswith('order_email_') and '_bulk' in k]
+        if bulk_emails:
+            st.subheader("Suggested Orders Table")
+            import pandas as pd
+            df_bulk = pd.DataFrame(bulk_emails)
+            st.dataframe(df_bulk[['asin','product_title','qty_suggested','date_order','to_email']])
+            for order_email in bulk_emails:
+                st.markdown(f"---\n**Product:** {order_email['product_title']} ({order_email['asin']})\n**Quantity:** {order_email['qty_suggested']}\n**Order date:** {order_email['date_order']}\n**To:** {order_email['to_email']}")
+                subject = st.text_input("Subject", value=order_email['subject'], key=f"bulk_subject_{order_email['asin']}")
+                body = st.text_area("Body", value=order_email['body'], height=150, key=f"bulk_body_{order_email['asin']}")
+                to_email = st.text_input("To (supplier email)", value=order_email['to_email'], key=f"bulk_to_{order_email['asin']}")
+                today_str = str(pd.Timestamp.today().date())
+                if order_email['date_order'] <= today_str:
+                    if st.button("Send Order Email", key=f"bulk_send_{order_email['asin']}"):
+                        import smtplib
+                        from email.message import EmailMessage
+                        config = load_config()
+                        smtp_server = config.get('smtp_server', 'smtp.gmail.com')
+                        smtp_port = int(config.get('smtp_port', 587))
+                        smtp_user = config.get('email_address', '')
+                        smtp_pass = config.get('email_password', '')
+                        msg = EmailMessage()
+                        msg['Subject'] = subject
+                        msg['From'] = smtp_user
+                        msg['To'] = to_email
+                        msg.set_content(body)
+                        try:
+                            with smtplib.SMTP(smtp_server, smtp_port) as server:
+                                server.starttls()
+                                server.login(smtp_user, smtp_pass)
+                                server.send_message(msg)
+                            st.success(f"Order email sent to {to_email}.")
+                        except Exception as e:
+                            st.error(f"Error sending email: {e}")
+                else:
+                    st.info(f"Order email scheduled for {order_email['date_order']}. It will be ready to send on that date.")
+        # Solo usar mock data en modo desarrollador
+        if st.session_state.get('dev_mode', False):
+            # 1. Selector de producto
+            product_options = []
+            product_data = None
             try:
-                provider = config.get("email_provider", "gmail")
+                df_products = pd.read_csv("data/discovery_results.csv")
+                if not df_products.empty:
+                    # Filtrar solo productos seleccionados
+                    selected_asins = list(st.session_state.get('selected_products', []))
+                    product_options = [(row['ASIN'], row['Title']) for _, row in df_products.iterrows() if 'ASIN' in row and 'Title' in row and row['ASIN'] in selected_asins]
+            except Exception:
+                pass
+            selected_product = None
+            if product_options:
+                selected_product = st.selectbox("Select product", options=product_options, format_func=lambda x: f"{x[1]} ({x[0]})", key="tracker_product_selector")
+                product_data = next((row for row in df_products.to_dict('records') if row['ASIN'] == selected_product[0]), None)
+            else:
+                st.info("No products available. Select products in the 'Product Selection' tab.")
+            if selected_product and product_data:
+                # 2. Panel resumen general
+                st.subheader("Product Summary")
+                st.markdown(f"**ASIN:** {product_data['ASIN']}")
+                st.markdown(f"**Title:** {product_data['Title']}")
+                st.markdown(f"**Category:** {product_data.get('Category','')}")
+                st.markdown(f"**Supplier:** {product_data.get('Supplier','')}")
+                st.markdown(f"**Status:** {product_data.get('Status','')}")
+                st.markdown(f"**Arrival Date:** {product_data.get('Arrival_Date','')}")
+                # 3. Correos relacionados
+                st.subheader("Related Emails")
+                try:
+                    df_emails = pd.read_csv("data/emails_mock.csv")
+                    emails = df_emails[df_emails['ASIN'] == product_data['ASIN']]
+                    if not emails.empty:
+                        for _, email in emails.iterrows():
+                            with st.expander(f"{email['Date']} - {email['Subject']}"):
+                                st.markdown(f"**From:** {email['From']}")
+                                st.markdown(f"**To:** {email['To']}")
+                                st.markdown(f"**Type:** {email['Type']}")
+                                st.markdown(f"**Body:**\n{email['Body']}")
+                    else:
+                        st.info("No related emails found.")
+                except Exception:
+                    st.info("No email data available.")
+                # 4. Costes y rentabilidad
+                st.subheader("Costs & Profitability")
+                st.markdown(f"**Cost per unit:** ${product_data.get('Cost','')}")
+                st.markdown(f"**Price per unit:** ${product_data.get('Price','')}")
+                st.markdown(f"**ROI:** {product_data.get('ROI','')}%")
+                st.markdown(f"**Profit:** ${product_data.get('Profit','')}")
+                # 5. Inventario
+                st.subheader("Inventory")
+                # --- Estado para mostrar formularios ---
+                if 'show_stock_arrival_form' not in st.session_state:
+                    st.session_state['show_stock_arrival_form'] = False
+                if 'show_manual_sale_form' not in st.session_state:
+                    st.session_state['show_manual_sale_form'] = False
+                if 'manual_movements' not in st.session_state:
+                    st.session_state['manual_movements'] = {}
+                asin = product_data['ASIN']
+                manual_movements_path = 'data/manual_inventory_movements.csv'
+                # --- Cargar movimientos manuales persistentes ---
+                if 'manual_movements_loaded' not in st.session_state:
+                    if os.path.exists(manual_movements_path):
+                        df_manual_persist = pd.read_csv(manual_movements_path)
+                        for _, row in df_manual_persist.iterrows():
+                            st.session_state['manual_movements'].setdefault(row['ASIN'], []).append(row.to_dict())
+                    st.session_state['manual_movements_loaded'] = True
+                # --- Guardar movimiento manual en disco ---
+                def save_manual_movement(new_mov):
+                    if os.path.exists(manual_movements_path):
+                        df = pd.read_csv(manual_movements_path)
+                        df = pd.concat([df, pd.DataFrame([new_mov])], ignore_index=True)
+                    else:
+                        df = pd.DataFrame([new_mov])
+                    df.to_csv(manual_movements_path, index=False)
+                # --- Botón y formulario para entrada de stock ---
+                if st.button("Register Stock Arrival", key=f"register_stock_btn_{asin}"):
+                    st.session_state['show_stock_arrival_form'] = not st.session_state['show_stock_arrival_form']
+                    st.session_state['show_manual_sale_form'] = False
+                if st.session_state['show_stock_arrival_form']:
+                    with st.form(key=f"stock_arrival_form_{asin}"):
+                        qty_in = st.number_input("Quantity received", min_value=1, value=10, step=1, key=f"qty_in_{asin}")
+                        date_in = st.date_input("Date", value=datetime.date.today(), key=f"date_in_{asin}")
+                        note_in = st.text_input("Note", value="Manual stock arrival", key=f"note_in_{asin}")
+                        submitted_in = st.form_submit_button("Add Stock Arrival", key=f"submit_in_{asin}")
+                        cancel_in = st.form_submit_button("Cancel", type="secondary", key=f"cancel_in_{asin}")
+                        if submitted_in:
+                            new_mov = {
+                                'ASIN': asin,
+                                'Date': str(date_in),
+                                'Type': 'IN',
+                                'Quantity': qty_in,
+                                'Note': note_in
+                            }
+                            st.session_state['manual_movements'].setdefault(asin, []).append(new_mov)
+                            save_manual_movement(new_mov)
+                            st.session_state['show_stock_arrival_form'] = False
+                            st.success(f"Stock arrival of {qty_in} units registered.")
+                        elif cancel_in:
+                            st.session_state['show_stock_arrival_form'] = False
+                # --- Botón y formulario para venta manual ---
+                if st.button("Register Manual Sale", key=f"register_sale_btn_{asin}"):
+                    st.session_state['show_manual_sale_form'] = not st.session_state['show_manual_sale_form']
+                    st.session_state['show_stock_arrival_form'] = False
+                if st.session_state['show_manual_sale_form']:
+                    with st.form(key=f"manual_sale_form_{asin}"):
+                        qty_out = st.number_input("Quantity sold", min_value=1, value=1, step=1, key=f"qty_out_{asin}")
+                        date_out = st.date_input("Date", value=datetime.date.today(), key=f"date_out_{asin}")
+                        note_out = st.text_input("Note", value="Manual sale", key=f"note_out_{asin}")
+                        submitted_out = st.form_submit_button("Add Manual Sale", key=f"submit_out_{asin}")
+                        cancel_out = st.form_submit_button("Cancel", type="secondary", key=f"cancel_out_{asin}")
+                        if submitted_out:
+                            new_mov = {
+                                'ASIN': asin,
+                                'Date': str(date_out),
+                                'Type': 'OUT',
+                                'Quantity': qty_out,
+                                'Note': note_out
+                            }
+                            st.session_state['manual_movements'].setdefault(asin, []).append(new_mov)
+                            save_manual_movement(new_mov)
+                            st.session_state['show_manual_sale_form'] = False
+                            st.success(f"Manual sale of {qty_out} units registered.")
+                        elif cancel_out:
+                            st.session_state['show_manual_sale_form'] = False
+                # --- Unir movimientos mock + manuales para mostrar ---
+                try:
+                    df_mov = pd.read_csv("data/inventory_movements_mock.csv")
+                    movs = df_mov[df_mov['ASIN'] == asin].copy()
+                except Exception:
+                    movs = pd.DataFrame(columns=['ASIN','Date','Type','Quantity','Note'])
+                manual_movs = st.session_state['manual_movements'].get(asin, [])
+                if manual_movs:
+                    df_manual = pd.DataFrame(manual_movs)
+                    movs = pd.concat([movs, df_manual], ignore_index=True)
+                if not movs.empty:
+                    movs = movs.sort_values('Date')
+                    st.markdown("**Inventory Movements:**")
+                    st.dataframe(movs[['Date','Type','Quantity','Note']])
+                else:
+                    st.info("No inventory movements found.")
+                # --- Recalcular stock mostrado ---
+                stock_in = movs[movs['Type']=='IN']['Quantity'].sum() if not movs.empty else 0
+                stock_out = movs[movs['Type']=='OUT']['Quantity'].sum() if not movs.empty else 0
+                stock_actual = stock_in - stock_out
+                st.markdown(f"**Stock in Amazon (calculated):** {stock_actual}")
+                # --- ALERTA de stock bajo ---
+                threshold = st.session_state.get('stock_threshold', 10)
+                alert_email = st.session_state.get('alert_email', '')
+                enable_alerts = st.session_state.get('enable_alerts', True)
+                lang = st.session_state.get('lang', 'en')
+                if enable_alerts and stock_actual < threshold:
+                    st.error(f"{'¡Stock bajo!' if lang=='es' else 'Low stock!'} {product_data['Title']} (ASIN: {asin}) has only {stock_actual} units (threshold: {threshold})")
+                    if alert_email:
+                        context = {
+                            'product': product_data['Title'],
+                            'asin': asin,
+                            'stock_actual': stock_actual,
+                            'threshold': threshold,
+                            'from_email': alert_email
+                        }
+                        if 'last_alert_sent' not in st.session_state:
+                            st.session_state['last_alert_sent'] = {}
+                        last_sent = st.session_state['last_alert_sent'].get(asin, 0)
+                        import time
+                        now = time.time()
+                        # Solo enviar una alerta por producto cada 10 minutos
+                        if now - last_sent > 600:
+                            ok, err = send_alert_email('low_stock', lang, alert_email, context)
+                            if ok:
+                                st.info(f"Alert email sent to {alert_email}")
+                                st.session_state['last_alert_sent'][asin] = now
+                            else:
+                                st.warning(f"Could not send alert email: {err}")
+                # --- Botón para exportar historial ---
+                if not movs.empty:
+                    csv_buffer = io.StringIO()
+                    movs.to_csv(csv_buffer, index=False)
+                    st.download_button(
+                        label="Export Inventory Movements (CSV)",
+                        data=csv_buffer.getvalue(),
+                        file_name=f"inventory_movements_{asin}.csv",
+                        mime="text/csv",
+                        key=f"export_movements_{asin}"
+                    )
+                # 6. Historial de acciones
+                st.subheader("Action History")
+                if 'movs' in locals() and not movs.empty:
+                    for _, row in movs.iterrows():
+                        st.markdown(f"- {row['Date']}: {row['Type']} {row['Quantity']} units ({row['Note']})")
+                if 'emails' in locals() and not emails.empty:
+                    for _, email in emails.iterrows():
+                        st.markdown(f"- {email['Date']}: Email '{email['Subject']}' [{email['Type']}] to {email['To']}")
+                # 7. Botones de acción
+                st.subheader("Actions")
+                st.button("Send Email to Supplier", key="send_email_btn")
+                st.button("Register Stock Arrival", key="register_stock_btn")
+                st.button("Register Manual Sale", key="register_sale_btn")
+                # 8. Análisis de demanda
+                st.subheader(t('demand_analysis'))
+                estimated_demand = None
+                if product_data.get('Demand', None) is not None:
+                    estimated_demand = product_data.get('Demand', None)
+                else:
+                    try:
+                        estimated_demand = int(product_data.get('Units_Sold', 0)) + int(product_data.get('Stock', 0))
+                    except Exception:
+                        estimated_demand = None
+                st.markdown(f"**{t('estimated_demand')}:** {estimated_demand if estimated_demand is not None else 'N/A'}")
+                real_demand = None
+                if 'movs' in locals() and not movs.empty:
+                    real_demand = movs[movs['Type'] == 'OUT']['Quantity'].sum()
+                else:
+                    try:
+                        real_demand = int(product_data.get('Units_Sold', 0))
+                    except Exception:
+                        real_demand = None
+                st.markdown(f"**{t('real_demand')}:** {real_demand if real_demand is not None else 'N/A'}")
+                if estimated_demand is not None and real_demand is not None:
+                    error = real_demand - int(estimated_demand)
+                    abs_error = abs(error)
+                    st.markdown(f"**{t('forecast_error')}:** {error} (Absolute: {abs_error})")
+                    if int(estimated_demand) > 0:
+                        correction_factor = real_demand / int(estimated_demand)
+                        next_forecast = round(int(estimated_demand) * correction_factor)
+                        st.markdown(f"**{t('correction_factor')}:** {correction_factor:.2f}")
+                        st.markdown(f"**{t('suggested_next_forecast')}:** {next_forecast}")
+                    else:
+                        st.info(t('not_enough_data'))
+                else:
+                    st.info(t('not_enough_data'))
+                method_options = [
+                    ("correction", t("correction_factor_method")),
+                    ("exp_smoothing", t("exp_smoothing")),
+                    ("holt_winters", t("holt_winters_forecast")),
+                    ("prophet", t("prophet_forecast"))
+                ]
+                method_dict = {
+                    "correction": {
+                        "desc": t("correction_desc"),
+                        "rec": t("correction_rec")
+                    },
+                    "exp_smoothing": {
+                        "desc": t("exp_smoothing_desc"),
+                        "rec": t("exp_smoothing_rec")
+                    },
+                    "holt_winters": {
+                        "desc": t("holt_winters_desc"),
+                        "rec": t("holt_winters_rec")
+                    },
+                    "prophet": {
+                        "desc": t("prophet_desc"),
+                        "rec": t("prophet_rec")
+                    }
+                }
+                col_sel, col_info = st.columns([8,1])
+                with col_sel:
+                    selected_method = st.selectbox(
+                        t('select_method'),
+                        options=method_options,
+                        format_func=lambda x: x[1],
+                        key="forecast_method_selector"
+                    )[0]
+                with col_info:
+                    if st.button('ℹ️', key='show_desc_btn'):
+                        st.session_state['show_desc'] = not st.session_state.get('show_desc', False)
+                if st.session_state.get('show_desc', False):
+                    st.info(method_dict[selected_method]['desc'])
+                # Solo mostrar la recomendación como texto visible
+                st.markdown(f"**{t('when_to_use')}** {method_dict[selected_method]['rec']}")
+
+                # --- Forecast según método seleccionado ---
+                # Calcular métricas de error para cada método si hay datos históricos suficientes
+                sales_history_path = f"data/sales_history_{product_data['ASIN']}.csv"
+                y_true, y_pred_correction, y_pred_exp, y_pred_hw, y_pred_prophet = [], [], [], [], []
+                metrics_table = []
+                anomalies = []  # <-- Inicialización añadida aquí
+                if os.path.exists(sales_history_path):
+                    df_sales = pd.read_csv(sales_history_path)
+                    df_sales['Date'] = pd.to_datetime(df_sales['Date'])
+                    df_sales = df_sales.sort_values('Date')
+                    if len(df_sales) >= 6:
+                        y_true = df_sales['Units_Sold'].values[-6:]
+                        est = int(product_data.get('Demand', 0)) or (int(product_data.get('Units_Sold', 0)) + int(product_data.get('Stock', 0)))
+                        y_pred_correction = [est] * 6
+                        alpha = 0.5
+                        F_t = est
+                        y_pred_exp = []
+                        for D_t in y_true:
+                            F_t = round(alpha * D_t + (1 - alpha) * F_t)
+                            y_pred_exp.append(F_t)
+                        import numpy as np
+                        try:
+                            from statsmodels.tsa.holtwinters import ExponentialSmoothing
+                            y = df_sales['Units_Sold'].values
+                            max_period = max(2, len(y)//2)
+                            period = min(12, max_period)
+                            if len(y) >= 2*period:
+                                model = ExponentialSmoothing(y, trend='add', seasonal='add', seasonal_periods=period)
+                                fit = model.fit()
+                                y_pred_hw = fit.fittedvalues.values[-6:]
+                                if len(y_pred_hw) < 6:
+                                    y_pred_hw = list(y_pred_hw) + [np.nan]*(6-len(y_pred_hw))
+                            else:
+                                y_pred_hw = [np.nan]*6
+                                st.info(f"Holt-Winters needs at least {2*period} data points (current: {len(y)}).")
+                        except Exception as e:
+                            y_pred_hw = [np.nan]*6
+                            st.info(f"Holt-Winters could not be fitted: {e}")
+                        try:
+                            forecast_val, forecast_df = forecast_prophet(df_sales[['Date','Units_Sold']])
+                            y_pred_prophet = forecast_df['yhat'].values[-6:]
+                        except Exception:
+                            y_pred_prophet = []
+                        # Detección de anomalías con Prophet
+                        try:
+                            forecast_val, forecast_df = forecast_prophet(df_sales[['Date','Units_Sold']])
+                            last6 = forecast_df.iloc[-6:]
+                            real_last6 = df_sales['Units_Sold'].values[-6:]
+                            for i, row in last6.iterrows():
+                                real = real_last6[i - last6.index[0]]
+                                if real < row['yhat_lower'] or real > row['yhat_upper']:
+                                    anomalies.append({
+                                        'date': row['ds'].strftime('%Y-%m-%d') if hasattr(row['ds'], 'strftime') else str(row['ds']),
+                                        'real': real,
+                                        'expected_range': f"{row['yhat_lower']:.1f} - {row['yhat_upper']:.1f}",
+                                        'yhat': row['yhat']
+                                    })
+                        except Exception:
+                            pass
+                # Mostrar tabla comparativa de métricas
+                if metrics_table:
+                    st.markdown('**Forecasting error comparison (last 6 periods):**')
+                    st.dataframe(metrics_table, use_container_width=True)
+                    # Gráfico comparativo
+                    try:
+                        # Fechas para los últimos 6 periodos
+                        if len(df_sales) >= 6:
+                            dates = df_sales['Date'].dt.strftime('%Y-%m-%d').values[-6:]
+                            fig = go.Figure()
+                            fig.add_trace(go.Scatter(x=dates, y=y_true, mode='lines+markers', name='Actual'))
+                            if len(y_pred_correction) == 6:
+                                fig.add_trace(go.Scatter(x=dates, y=y_pred_correction, mode='lines+markers', name='Correction Factor'))
+                            if len(y_pred_exp) == 6:
+                                fig.add_trace(go.Scatter(x=dates, y=y_pred_exp, mode='lines+markers', name='Exp. Smoothing'))
+                            if len(y_pred_hw) == 6:
+                                fig.add_trace(go.Scatter(x=dates, y=y_pred_hw, mode='lines+markers', name='Holt-Winters'))
+                            if len(y_pred_prophet) == 6:
+                                fig.add_trace(go.Scatter(x=dates, y=y_pred_prophet, mode='lines+markers', name='Prophet'))
+                            # Añadir anomalías si existen
+                            if anomalies:
+                                anomaly_dates = [a['date'] for a in anomalies]
+                                anomaly_vals = [a['real'] for a in anomalies]
+                                fig.add_trace(go.Scatter(
+                                    x=anomaly_dates, y=anomaly_vals,
+                                    mode='markers',
+                                    marker=dict(color='red', size=14, symbol='x'),
+                                    name='Anomaly',
+                                    showlegend=True
+                                ))
+                            fig.update_layout(title='Forecasting comparison (last 6 periods)', xaxis_title='Date', yaxis_title='Units Sold')
+                            st.plotly_chart(fig, use_container_width=True)
+                    except Exception as e:
+                        st.info(f"Could not display comparison chart: {e}")
+                else:
+                    st.info('Not enough data to compare forecasting methods.')
+                if anomalies:
+                    for anomaly in anomalies:
+                        st.warning(f"⚠️ Anomaly detected in sales on {anomaly['date']}! Real: {anomaly['real']}, Expected: {anomaly['expected_range']}. Consider reviewing inventory or contacting your supplier.")
+        else:
+            st.info("Product tracking is only available in developer mode. Please enable developer mode to use mock data, or import real product data.")
+    with tabs[3]:
+        # --- SOLO aquí va la UI de gestión de emails ---
+        st.header(t('email_agent_instructions'))
+        if st.session_state.get("email_address") and st.session_state.get("email_password"):
+            try:
+                provider = st.session_state.get("email_provider", "gmail")
                 if provider == "gmail":
                     imap_server = "imap.gmail.com"
                 elif provider == "outlook":
@@ -642,7 +1329,7 @@ def pipeline_ui() -> None:
                 else:
                     imap_server = st.text_input(t('imap_server'), value="imap.gmail.com")
                 imap = imaplib.IMAP4_SSL(imap_server)
-                imap.login(config["email_address"], config["email_password"])
+                imap.login(st.session_state.get("email_address", ""), st.session_state.get("email_password", ""))
                 imap.select("INBOX")
                 status, messages = imap.search(None, "ALL")
                 if status == "OK":
@@ -698,7 +1385,6 @@ def pipeline_ui() -> None:
                     if filter_date:
                         filtered_emails = [e for e in filtered_emails if isinstance(e["date"], datetime.datetime) and e["date"].date() == filter_date]
                     # --- Tabla de emails ---
-                    import pandas as pd
                     table_data = [{
                         t('from'): e['sender'],
                         t('subject'): e['subject'],
@@ -738,25 +1424,25 @@ def pipeline_ui() -> None:
                     try:
                         msg = EmailMessage()
                         msg["Subject"] = subject
-                        msg["From"] = config["email_address"]
+                        msg["From"] = st.session_state.get("email_address", "")
                         msg["To"] = to_addr
                         msg.set_content(body)
                         if file is not None:
                             file_bytes = file.read()
                             msg.add_attachment(file_bytes, maintype="application", subtype="octet-stream", filename=file.name)
-                        provider = config.get("email_provider", "gmail")
+                        provider = st.session_state.get("email_provider", "gmail")
                         smtp_server = "smtp.gmail.com" if provider == "gmail" else ("smtp-mail.outlook.com" if provider == "outlook" else st.text_input(t('smtp_server'), value="smtp.gmail.com"))
                         smtp_port = 587
                         try:
                             with smtplib.SMTP(smtp_server, smtp_port, timeout=15) as server:
                                 server.starttls()
-                                server.login(config["email_address"], config["email_password"])
+                                server.login(st.session_state.get("email_address", ""), st.session_state.get("email_password", ""))
                                 server.send_message(msg)
                             st.success("Email enviado correctamente.")
                         except Exception as e1:
                             try:
                                 with smtplib.SMTP_SSL(smtp_server, 465, timeout=15) as server:
-                                    server.login(config["email_address"], config["email_password"])
+                                    server.login(st.session_state.get("email_address", ""), st.session_state.get("email_password", ""))
                                     server.send_message(msg)
                                 st.success("Email enviado correctamente (SSL/465).")
                             except Exception as e2:
@@ -765,140 +1451,85 @@ def pipeline_ui() -> None:
                         st.error(f"Error enviando email: {e}")
         else:
             st.warning(t('email_address') + "/" + t('email_password') + " " + t('not_configured'))
+    with tabs[4]:
+        # --- NUEVO: Pestaña KDP ---
+        st.header("KDP (Kindle Direct Publishing)")
+        st.info("Aquí podrás gestionar el pipeline de KDP. Próximamente podrás descubrir nichos, analizar competencia, generar portadas y gestionar publicaciones de libros en Amazon KDP.")
+        # Esqueleto de pasos típicos del pipeline KDP:
+        st.subheader("1. Descubrimiento de Nichos")
+        st.write("Funcionalidad para buscar nichos rentables en KDP. [Por implementar]")
+        st.subheader("2. Análisis de Competencia")
+        st.write("Analiza la competencia en los nichos seleccionados. [Por implementar]")
+        st.subheader("3. Generación de Portadas y Descripciones")
+        st.write("Herramientas para crear portadas y descripciones atractivas. [Por implementar]")
+        st.subheader("4. Publicación y Seguimiento de Ventas")
+        st.write("Gestiona la publicación y monitoriza ventas de tus libros KDP. [Por implementar]")
+        # Aquí puedes ir añadiendo formularios, tablas, botones, etc. según avances.
+        # Ejemplo de botón futuro:
+        # if st.button("Descubrir Nichos KDP"):
+        #     st.success("Funcionalidad en desarrollo.")
 
-    # Mostrar Run Tests y Validate Pipeline solo en modo desarrollador
-    if dev_mode:
-        if st.button(t('run_tests')):
-            with st.spinner(t('running_tests')):
-                out, code = run_test_all()
-            with st.expander(t('test_output'), expanded=code != 0):
-                st.code(out)
-            st.session_state.tests_ok = code == 0
-            if st.session_state.tests_ok:
-                st.success(t('tests_passed'))
-            else:
-                st.error(t('tests_failed'))
+        # 1. Descubrimiento de Nichos
+        st.subheader("1. Descubrimiento de Nichos")
+        if st.button("Descubrir nichos rentables"):
+            df_nichos = kdp_module.discover_niches()
+            st.session_state['df_nichos'] = df_nichos  # Guardar en session_state
 
-        if st.button(t('validate_pipeline')):
-            with st.spinner(t('validating_pipeline')):
-                vout, vcode = run_validate_all()
-            with st.expander(t('validation_output'), expanded=vcode != 0):
-                st.code(vout)
-            st.session_state.validation_ok = vcode == 0
-            if st.session_state.validation_ok:
-                st.success(t('validation_passed'))
-            else:
-                st.error(t('validation_failed'))
+        # Mostrar la tabla si existe en session_state
+        if 'df_nichos' in st.session_state:
+            st.dataframe(st.session_state['df_nichos'])
 
-    # --- NUEVO: Botón para ejecutar toda la pipeline ---
-    if st.button(t('run_all')):
-        with st.spinner(t('running_full_pipeline')):
-            run_headless(auto=True)
-        st.success(t('pipeline_completed'))
+        # 2. Análisis de Competencia
+        nicho = st.text_input("Introduce un nicho para analizar la competencia")
+        if st.button("Analizar competencia") and nicho:
+            comp = kdp_module.analyze_competition(nicho)
+            st.session_state['comp_result'] = comp  # Guardar en session_state
 
-    st.divider()
+        if 'comp_result' in st.session_state:
+            comp = st.session_state['comp_result']
+            st.markdown(f"### Análisis de competencia para: **{comp['niche']}**")
+            col1, col2, col3 = st.columns(3)
+            col1.metric("Top Sellers", comp["top_sellers"])
+            col2.metric("Precio medio", f"${comp['avg_price']:.2f}")
+            col3.metric("Reviews medias", comp["avg_reviews"])
+            st.info(f"**Barreras de entrada:** {comp['barrier_to_entry']}")
 
-    disabled = not (st.session_state.tests_ok and st.session_state.validation_ok)
+        # 3. Generación de Título, Portada y Contenido con IA
+        st.subheader("3. Generación de Título, Portada y Contenido con IA")
+        book_format = st.text_input("Formato del libro (ej: diario, planner, cuaderno)")
+        if st.button("Generar libro con IA") and nicho and book_format:
+            with st.spinner("Generando título, descripción y contenido con IA..."):
+                ai_result = kdp_module.generate_kdp_book_ai(nicho, book_format)
+            st.markdown(f"**Título sugerido:** {ai_result['titulo']}")
+            st.markdown(f"**Descripción:** {ai_result['descripcion']}")
+            st.markdown(f"**Ejemplo de contenido:**\n\n{ai_result['contenido']}")
+            # Portada con IA
+            if st.button("Generar portada con IA"):
+                with st.spinner("Generando portada con IA..."):
+                    cover_url = kdp_module.generate_kdp_cover_ai(ai_result['titulo'], nicho)
+                st.image(cover_url, caption="Portada generada por IA")
 
-    # Definir los archivos de salida de cada módulo en orden
-    output_files = [
-        ("Product Results", fba_agent.OUTPUTS["product_discovery"]),
-        ("Market Analysis", fba_agent.OUTPUTS["market_analysis"]),
-        ("Profitability", fba_agent.OUTPUTS["profitability_estimation"]),
-        ("Demand Forecast", fba_agent.OUTPUTS["demand_forecast"]),
-        ("Supplier Selection", fba_agent.OUTPUTS["supplier_selection"]),
-        ("Pricing Suggestions", fba_agent.OUTPUTS["pricing_simulator"]),
-        ("Inventory Management", fba_agent.OUTPUTS["inventory_management"]),
-    ]
+        # 4. Publicación y Seguimiento
+        st.subheader("4. Publicación y Seguimiento de Ventas")
+        book_asin = st.text_input("ASIN del libro para seguimiento")
+        if st.button("Simular publicación"):
+            book_data = {"title": title, "niche": nicho, "author": author}
+            pub = kdp_module.publish_book(book_data)
+            st.success(pub["message"])
+        if st.button("Ver ventas simuladas") and book_asin:
+            df_sales = kdp_module.track_sales(book_asin)
+            st.dataframe(df_sales)
 
-    prereqs_met = True
-    for idx, (label, script) in enumerate(MODULES):
-        label_key = label.lower().replace(' ', '_')
-        label_translated = t(label_key) if label_key in TRANSLATIONS[st.session_state['lang']] else label
-        with st.expander(label_translated, expanded=False):
-            is_step_disabled = disabled or not prereqs_met
-            if st.button(label_translated, key=f"btn_{script}", disabled=is_step_disabled):
-                run_step_ui(label, script, st.session_state.budget, st.session_state.dev_mode)
-            if st.session_state.dev_mode and st.session_state.logs[label]:
-                st.text_area(t('step_log'), st.session_state.logs[label], height=150)
-            # --- SIEMPRE mostrar el editor de mensajes a proveedores en el panel correspondiente ---
-            if label == "Generate Supplier Emails":
-                supplier_messages_dir = "supplier_messages"
-                product_files = [f for f in sorted(os.listdir(supplier_messages_dir)) if f.endswith('.txt')] if os.path.exists(supplier_messages_dir) else []
-                product_options = [(f, f) for f in product_files]
-                st.subheader(t('supplier_message_editor'))
-                selected_product = st.selectbox(
-                    t('select_product'), options=product_options, format_func=lambda x: x[0] if x else "",
-                    index=0 if product_options else None, key="product_selector"
-                ) if product_options else None
-                if selected_product:
-                    msg_path = os.path.join(supplier_messages_dir, selected_product[0])
-                    try:
-                        with open(msg_path, "r", encoding="utf-8") as f:
-                            content = f.read()
-                    except Exception:
-                        content = ""
-                else:
-                    content = "ASIN: B0EXAMPLE\nTitle: Example Product\n\nDear Supplier,\nPlease provide your best quote for 100 units of Example Product."
-                editor_key = f"editor_{selected_product[0]}" if selected_product else "editor_template"
-                edited_msg = st.text_area(t('message'), content, height=200, key=editor_key, disabled=not selected_product)
-                instruction_key = f"instruction_{selected_product[0]}" if selected_product else "instruction_template"
-                instruction = st.text_input(t('instruction_for_chatgpt'), key=instruction_key, disabled=not selected_product)
-                col_btn1, col_btn2, col_btn3 = st.columns([1,1,1])
-                with col_btn1:
-                    if st.button(t('save_message'), key=f"save_{selected_product[0]}" if selected_product else "save_template", disabled=not selected_product):
-                        with open(msg_path, "w", encoding="utf-8") as f:
-                            f.write(st.session_state[editor_key])
-                        st.success(t('message_saved'))
-                with col_btn2:
-                    if st.button(t('send_message'), key=f"send_{selected_product[0]}" if selected_product else "send_template", disabled=not selected_product):
-                        st.success(t('message_sent', name=selected_product[0]) if selected_product else t('no_product_selected'))
-                with col_btn3:
-                    if st.button(t('improve_with_chatgpt'), key=f"improve_{selected_product[0]}" if selected_product else "improve_template", disabled=not selected_product):
-                        import openai
-                        client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-                        asin = selected_product[0] if selected_product else "B0EXAMPLE"
-                        title = ""
-                        for line in content.splitlines():
-                            if line.lower().startswith("title:"):
-                                title = line.split(":",1)[-1].strip()
-                                break
-                        prompt = f"Product ASIN: {asin}\nProduct Title: {title}\n\nOriginal message:\n{edited_msg}\n\nInstruction: {instruction}\n\nRewrite the message accordingly, making sure it is appropriate for the product."
-                        try:
-                            response = client.chat.completions.create(
-                                model="gpt-3.5-turbo",
-                                messages=[
-                                    {"role": "system", "content": "You are an expert in writing professional supplier emails for Amazon FBA sourcing. Always include a suitable signature and adapt the message to the product."},
-                                    {"role": "user", "content": prompt}
-                                ]
-                            )
-                            improved = response.choices[0].message.content.strip()
-                            st.session_state[f"improved_{selected_product[0]}"] = improved
-                        except Exception as e:
-                            st.session_state[f"improved_{selected_product[0]}"] = f"[Error: {e}]"
-                improved = st.session_state.get(f"improved_{selected_product[0]}", "") if selected_product else ""
-                if improved:
-                    st.text_area(t('chatgpt_suggestion'), improved, height=200, key=f"suggestion_{selected_product[0]}" if selected_product else "suggestion_template")
-                    if st.button(t('replace_with_suggestion'), key=f"replace_{selected_product[0]}" if selected_product else "replace_template"):
-                        st.session_state[editor_key] = improved
-                        st.success(t('message_replaced'))
-            # --- FIN bloque editor SIEMPRE visible ---
-            if idx < len(output_files):
-                out_title, out_path = output_files[idx]
-                if label == "Run Supplier Selection":
-                    if os.path.exists(out_path) and file_has_content(out_path):
-                        display_supplier_selection()
-                elif label not in ("Generate Supplier Emails",):
-                    if os.path.exists(out_path) and file_has_content(out_path):
-                        display_csv(out_path, out_title)
-                    else:
-                        prereqs_met = False
-            else:
-                prereqs_met = False
-
-    # Mostrar solo el resumen al final (los mensajes ya están en el nuevo bloque)
-    st.header(t('summary'))
-    summary_screen()
+        # Buscar tendencias en Pinterest
+        st.subheader("Buscar tendencias en Pinterest")
+        pinterest_query = st.text_input("Palabra clave para buscar en Pinterest", value="journal ideas", key="pinterest_query")
+        if st.button("Buscar en Pinterest"):
+            with st.spinner("Buscando en Pinterest..."):
+                df_pins = kdp_module.search_pinterest_trends(pinterest_query)
+                st.session_state['df_pins'] = df_pins  # Guardar resultados en session_state
+        # Mostrar la tabla si existe en session_state
+        if 'df_pins' in st.session_state:
+            st.dataframe(st.session_state['df_pins'])
 
 
 def run_step_ui(label: str, script: str, budget: float, dev_mode: bool) -> None:
@@ -1021,9 +1652,6 @@ def display_supplier_selection():
 
 def check_requirements_installed() -> bool:
     """Devuelve True si todos los paquetes de requirements.txt están instalados, False si falta alguno."""
-    import importlib
-    import pkg_resources
-    import sys
     req_path = os.path.join(ROOT_DIR, "requirements.txt")
     if not os.path.exists(req_path):
         return True  # Si no hay requirements, asumimos que está bien
@@ -1067,6 +1695,97 @@ def save_config(config):
     with open(CONFIG_PATH, "w", encoding="utf-8") as f:
         json.dump(config, f, indent=2)
 
+
+# --- Plantillas de alertas (ES/EN) ---
+ALERT_TEMPLATES = {
+    'low_stock': {
+        'es': {
+            'subject': '[ALERTA] Stock bajo para {product}',
+            'body': (
+                'Hola,\n\nEl stock del producto {product} (ASIN: {asin}) ha bajado a {stock_actual} unidades, por debajo del umbral de {threshold}.\nTe recomendamos reponer inventario lo antes posible.\n\nSaludos,\nAmazon FBA AI Agent'
+            )
+        },
+        'en': {
+            'subject': '[ALERT] Low stock for {product}',
+            'body': (
+                'Hello,\n\nThe stock for product {product} (ASIN: {asin}) has dropped to {stock_actual} units, below the threshold of {threshold}.\nWe recommend restocking as soon as possible.\n\nBest regards,\nAmazon FBA AI Agent'
+            )
+        }
+    },
+    'sales_anomaly': {
+        'es': {
+            'subject': '[ALERTA] Anomalía detectada en ventas de {product}',
+            'body': (
+                'Hola,\n\nSe ha detectado una anomalía en las ventas del producto {product} (ASIN: {asin}):\n{anomaly_desc}\n\nPor favor, revisa la situación para tomar las acciones necesarias.\n\nSaludos,\nAmazon FBA AI Agent'
+            )
+        },
+        'en': {
+            'subject': '[ALERT] Sales anomaly detected for {product}',
+            'body': (
+                'Hello,\n\nA sales anomaly has been detected for product {product} (ASIN: {asin}):\n{anomaly_desc}\n\nPlease review the situation and take necessary action.\n\nBest regards,\nAmazon FBA AI Agent'
+            )
+        }
+    }
+}
+
+def send_alert_email(alert_type, lang, to_email, context):
+    import smtplib
+    from email.message import EmailMessage
+    tpl = ALERT_TEMPLATES[alert_type][lang]
+    subject = tpl['subject'].format(**context)
+    body = tpl['body'].format(**context)
+    msg = EmailMessage()
+    msg['Subject'] = subject
+    msg['From'] = context.get('from_email', 'fba-agent@example.com')
+    msg['To'] = to_email
+    msg.set_content(body)
+    # Configuración SMTP desde config
+    config = load_config()
+    smtp_server = config.get('smtp_server', 'smtp.gmail.com')
+    smtp_port = int(config.get('smtp_port', 587))
+    smtp_user = config.get('email_address', '')
+    smtp_pass = config.get('email_password', '')
+    try:
+        with smtplib.SMTP(smtp_server, smtp_port) as server:
+            server.starttls()
+            server.login(smtp_user, smtp_pass)
+            server.send_message(msg)
+        return True, None
+    except Exception as e:
+        return False, str(e)
+
+# --- ToDo file helpers ---
+TODO_FILE = 'todos.txt'
+
+def add_todo(task: str):
+    with open(TODO_FILE, 'a', encoding='utf-8') as f:
+        f.write(task.strip() + '\n')
+
+def complete_todo(task: str):
+    if not os.path.exists(TODO_FILE):
+        return
+    with open(TODO_FILE, 'r', encoding='utf-8') as f:
+        lines = f.readlines()
+    with open(TODO_FILE, 'w', encoding='utf-8') as f:
+        for line in lines:
+            if line.strip() == task.strip() or line.strip() == task.strip() + 'OK':
+                f.write(task.strip() + 'OK\n')
+            else:
+                f.write(line)
+
+def load_todos():
+    if not os.path.exists(TODO_FILE):
+        return []
+    with open(TODO_FILE, 'r', encoding='utf-8') as f:
+        return [line.strip() for line in f if line.strip()]
+
+def forecast_prophet(df_sales):
+    df = df_sales.rename(columns={'Date': 'ds', 'Units_Sold': 'y'})
+    model = Prophet()
+    model.fit(df)
+    future = model.make_future_dataframe(periods=1, freq='M')
+    forecast = model.predict(future)
+    return forecast.iloc[-1]['yhat'], forecast
 
 if __name__ == "__main__":
     args = parse_cli()

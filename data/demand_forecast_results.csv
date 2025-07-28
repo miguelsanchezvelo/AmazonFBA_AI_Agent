@@ -1,4 +1,7 @@
 asin,title,bsr,est_monthly_sales,demand_level
-B0MOCK001,Mock Product 1,100,1000,HIGH
-B0MOCK002,Mock Product 2,200,800,MEDIUM
-B0MOCK003,Mock Product 3,300,600,LOW
+B0MOCK001,Mock Product 1,350,1000,HIGH
+B0MOCK002,Mock Product 2,550,500,MEDIUM
+B0MOCK003,Mock Product 3,750,500,LOW
+B08K3RCTVJ,Baby Shark Collection,950,500,MEDIUM
+B0161VA394,BabyFirst Art Music,1150,250,LOW
+B09FYTG37V,Adjustable Dumbbells,1350,250,LOW

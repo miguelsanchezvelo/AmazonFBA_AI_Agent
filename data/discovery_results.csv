@@ -1,4 +1,4 @@
-asin,title,price,cost,roi,demand
-B0MOCK001,Mock Product 1,25.99,10.0,0.59,HIGH
-B0MOCK002,Mock Product 2,19.99,7.0,0.45,MEDIUM
-B0MOCK003,Mock Product 3,15.99,5.0,0.35,LOW
+ASIN,Title,Category,Cost,Price,Stock,Units_Sold,Supplier,Status,Arrival_Date,ROI,Profit,Email_Count
+B0TEST001,Test Product 1,Electronics,12.50,29.99,100,50,Supplier A,In Amazon,2024-06-01,120,875,5
+B0TEST002,Test Product 2,Home,8.00,19.99,200,120,Supplier B,In Transit,2024-06-10,90,1439,3
+B0TEST003,Test Product 3,Toys,5.75,14.99,80,30,Supplier C,Out of Stock,2024-05-20,60,274,2

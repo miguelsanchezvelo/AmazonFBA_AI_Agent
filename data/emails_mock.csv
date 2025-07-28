@@ -1,0 +1,8 @@
+ASIN,Date,From,To,Subject,Body,Type
+B0TEST001,2024-06-01,supplierA@example.com,me@fba.com,Order Confirmation,Your order for Test Product 1 has been received.,Supplier
+B0TEST001,2024-06-03,me@fba.com,supplierA@example.com,Shipping Inquiry,When will Test Product 1 ship?,Buyer
+B0TEST001,2024-06-05,supplierA@example.com,me@fba.com,Shipping Update,Test Product 1 shipped today.,Supplier
+B0TEST002,2024-06-02,supplierB@example.com,me@fba.com,Order Confirmation,Your order for Test Product 2 has been received.,Supplier
+B0TEST002,2024-06-04,me@fba.com,supplierB@example.com,Payment Sent,Payment for Test Product 2 sent.,Buyer
+B0TEST003,2024-05-21,supplierC@example.com,me@fba.com,Out of Stock,Test Product 3 is currently out of stock.,Supplier
+B0TEST003,2024-05-22,me@fba.com,supplierC@example.com,Backorder Request,Please notify when Test Product 3 is available.,Buyer 

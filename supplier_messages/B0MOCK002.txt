@@ -1,4 +1,0 @@
-ASIN: B0MOCK002
-Title: Mock Product 2
-
-Hello, we are interested in 'Mock Product 2' (ASIN B0MOCK002). Please provide pricing and MOQ details.

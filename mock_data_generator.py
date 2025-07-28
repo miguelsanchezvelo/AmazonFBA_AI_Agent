@@ -288,6 +288,28 @@ def clean_mock_files():
                 os.remove(os.path.join(MSG_DIR, f))
 
 
+# --- Generación de historial de ventas con suficiente longitud y outliers para pruebas de forecasting y anomalías ---
+def generate_sales_history(asin, path):
+    import pandas as pd
+    import numpy as np
+    from datetime import datetime, timedelta
+    np.random.seed(hash(asin) % 2**32)
+    n_periods = 36  # 3 años de datos mensuales
+    base = 50 + np.random.randint(-10, 10)
+    trend = np.linspace(0, 15, n_periods)
+    seasonality = 10 * np.sin(np.linspace(0, 2 * np.pi, n_periods))
+    noise = np.random.normal(0, 5, n_periods)
+    sales = base + trend + seasonality + noise
+    # Insertar algunos outliers
+    sales[5] += 30
+    sales[15] -= 25
+    sales[25] += 40
+    sales = np.round(np.clip(sales, 5, None)).astype(int)
+    dates = [datetime.today() - timedelta(days=30 * (n_periods-1 - i)) for i in range(n_periods)]
+    df = pd.DataFrame({'Date': [d.strftime('%Y-%m-%d') for d in dates], 'Units_Sold': sales})
+    df.to_csv(path, index=False)
+
+
 def main(argv: Optional[List[str]] = None) -> None:
     parser = argparse.ArgumentParser(description="Generate mock data for the full pipeline (varied)")
     parser.add_argument('--clean', action='store_true', help='Remove mock data files before generating')
@@ -437,6 +459,65 @@ def main(argv: Optional[List[str]] = None) -> None:
             if not os.path.exists(path) or os.path.getsize(path) == 0:
                 with open(path, "w", encoding="utf-8") as f:
                     f.write(text)
+
+    # SALES HISTORY: ventas diarias para todos los productos
+    sales_hist_path = os.path.join(DATA_DIR, "sales_history.csv")
+    if not file_exists_and_has_data(sales_hist_path):
+        sales_rows = []
+        import random, datetime
+        today = datetime.date.today()
+        for p in ALL_PRODUCTS:
+            asin = p["asin"]
+            # Generar ventas para los últimos 3 meses
+            for month_delta in range(3):
+                for day in range(1, 29):
+                    date = today.replace(day=1) - datetime.timedelta(days=month_delta*30) + datetime.timedelta(days=day-1)
+                    units = random.randint(0, 5) + (3 if month_delta == 0 else 0)  # Más ventas el mes actual
+                    sales_rows.append({
+                        "ASIN": asin,
+                        "Date": date.strftime("%Y-%m-%d"),
+                        "Units_Sold": units
+                    })
+        write_csv(sales_hist_path, ["ASIN", "Date", "Units_Sold"], sales_rows, overwrite=True)
+
+    # INVENTORY MOVEMENTS: entradas y salidas para todos los productos
+    inv_mov_path = os.path.join(DATA_DIR, "inventory_movements_mock.csv")
+    if not file_exists_and_has_data(inv_mov_path):
+        inv_rows = []
+        import random, datetime
+        today = datetime.date.today()
+        for p in ALL_PRODUCTS:
+            asin = p["asin"]
+            # Simular 2 entradas de stock y varias salidas (ventas)
+            for i in range(2):
+                date_in = today - datetime.timedelta(days=60 - i*30)
+                qty_in = random.randint(80, 120)
+                inv_rows.append({
+                    "ASIN": asin,
+                    "Date": date_in.strftime("%Y-%m-%d"),
+                    "Type": "IN",
+                    "Quantity": qty_in,
+                    "Note": "Stock arrival"
+                })
+            # Simular salidas (ventas) repartidas
+            for i in range(20):
+                date_out = today - datetime.timedelta(days=random.randint(0, 59))
+                qty_out = random.randint(1, 6)
+                inv_rows.append({
+                    "ASIN": asin,
+                    "Date": date_out.strftime("%Y-%m-%d"),
+                    "Type": "OUT",
+                    "Quantity": qty_out,
+                    "Note": "Sale"
+                })
+        write_csv(inv_mov_path, ["ASIN", "Date", "Type", "Quantity", "Note"], inv_rows, overwrite=True)
+
+    # Obtener la lista de ASINs mock generados
+    asins = [row['asin'] for row in generate_product_results_var()]
+    for asin in asins:
+        sales_history_path = os.path.join(DATA_DIR, f"sales_history_{asin}.csv")
+        generate_sales_history(asin, sales_history_path)
+
     print("Varied mock data written to 'data/' and 'supplier_messages/' (no overwrite if file exists). Includes viable/non-viable, mock/real, and edge cases.")
 
 

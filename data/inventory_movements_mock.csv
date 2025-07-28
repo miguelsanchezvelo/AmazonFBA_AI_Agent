@@ -1,0 +1,8 @@
+ASIN,Date,Type,Quantity,Note
+B0TEST001,2024-06-01,IN,100,Initial stock received
+B0TEST001,2024-06-10,OUT,20,Units sold
+B0TEST001,2024-06-15,OUT,10,Units sold
+B0TEST002,2024-06-05,IN,200,Initial stock received
+B0TEST002,2024-06-12,OUT,50,Units sold
+B0TEST003,2024-05-21,IN,80,Initial stock received
+B0TEST003,2024-05-25,OUT,30,Units sold 

@@ -1,0 +1,24 @@
+# DevToDo.txt
+
+# Lista de tareas de desarrollo para AmazonFBA_AI_Agent
+
+- Refactorizar la gestión de configuración para soportar múltiples entornos
+- Mejorar la validación de datos de entrada en los módulos principales
+- Añadir tests automáticos para la lógica de alertas y notificaciones
+- Documentar el flujo de trabajo de la pipeline en el README
+- Revisar la integración de emails con proveedores
+- Optimizar la carga de datos grandes en la UI
+- Internacionalizar todos los mensajes de la interfaz 
+
+# Ideas de mejora con IA para el producto (pendientes de priorizar e implementar)
+- Mejorar la generación de mensajes a proveedores con IA: adaptar tono, detectar errores y sugerir respuestas automáticas.
+- Integrar modelos de forecasting avanzados (XGBoost, Prophet, ML de series temporales) y comparar con métodos clásicos.
+- Añadir métricas de error (MAE, RMSE) y visualización comparativa de forecasts.
+- Implementar detección de anomalías en ventas/inventario con IA y sugerir acciones automáticas.
+- Crear un módulo de análisis de reviews con IA: extraer pros/contras, temas y alertas de reputación.
+- Sugerir mejoras de producto basadas en análisis de sentimiento y temas detectados en reviews.
+- Desarrollar un sistema de optimización de precios dinámico con IA, simulando escenarios “what-if”.
+- Añadir un asistente conversacional interno (chatbot) para responder preguntas sobre el negocio y pipeline.
+- Automatizar tareas repetitivas detectadas por IA (seguimiento, actualización de precios, etc.).
+- Añadir un panel de “Sugerencias de IA” en la UI con acciones y alertas basadas en datos actuales.
+- Permitir feedback de usuario sobre las sugerencias de IA para aprendizaje y mejora continua. 
