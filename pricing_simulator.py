@@ -78,8 +78,8 @@ def parse_float(value: Optional[str]) -> Optional[float]:
     return float(match.group()) if match else None
 
 
-def load_top_products(path: str, count: int = 5) -> List[Dict[str, str]]:
-    """Return the most profitable products from the CSV file."""
+def load_top_products(path: str) -> List[Dict[str, str]]:
+    """Return all viable products from the profitability CSV."""
     if not os.path.exists(path):
         print(f"Input file '{path}' not found. Run profitability_estimation.py first.")
         return []
@@ -105,14 +105,17 @@ def load_top_products(path: str, count: int = 5) -> List[Dict[str, str]]:
     if unknown:
         log(f"pricing_simulator: ASIN mismatch {','.join(sorted(unknown))}")
         if not rows:
-            print("ASIN mismatch with product_results.csv")
+            print(
+                "Error: ASIN mismatch with product_results.csv. "
+                "Run reset_pipeline.py or mock_data_generator.py"
+            )
 
     if not rows:
         print("No viable products found in profitability results.")
         return []
 
     rows.sort(key=lambda r: parse_float(r.get("profit")) or 0.0, reverse=True)
-    return rows[:count]
+    return rows
 
 
 def choose_model(client: OpenAI) -> str:

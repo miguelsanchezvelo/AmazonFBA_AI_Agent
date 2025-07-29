@@ -387,6 +387,19 @@ def cross_check(data: Dict[str, pd.DataFrame]) -> List[Result]:
     return results
 
 
+def min_product_check(data: Dict[str, pd.DataFrame]) -> List[Result]:
+    results: List[Result] = []
+    for fname in [
+        "product_results.csv",
+        "market_analysis_results.csv",
+        "profitability_estimation_results.csv",
+    ]:
+        df = data.get(fname)
+        if df is not None and len(df) < 5:
+            results.append(Result(fname, "Warning", "fewer than 5 products"))
+    return results
+
+
 def print_summary(results: List[Result]) -> None:
     header = f"{'File':35} {'Status':>8}  Notes"
     print(header)
@@ -423,6 +436,7 @@ def main() -> None:
         results.append(res)
 
     results.extend(cross_check(all_data))
+    results.extend(min_product_check(all_data))
 
     if script_results:
         results = script_results + results

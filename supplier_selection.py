@@ -260,6 +260,10 @@ def join_data(profit_rows: List[Dict[str, str]], demand_rows: List[Dict[str, str
         log_asin_mismatch("supplier_selection", unknown)
         log(f"supplier_selection: ASIN mismatch {','.join(sorted(unknown))}")
         if not combined:
+            print(
+                "Error: ASIN mismatch with product_results.csv. "
+                "Run reset_pipeline.py or mock_data_generator.py"
+            )
             msg = (
                 f"No se encontraron productos viables para proveedores.\n"
                 f"Total productos analizados: {total}.\n"

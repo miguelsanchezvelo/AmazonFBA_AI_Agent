@@ -158,6 +158,10 @@ def process(rows: List[Dict[str, str]]) -> List[Dict[str, str]]:
         log_asin_mismatch("demand_forecast", unknown)
         log(f"demand_forecast: ASIN mismatch {','.join(sorted(unknown))}")
         if not results:
+            print(
+                "Error: ASIN mismatch with product_results.csv. "
+                "Run reset_pipeline.py or mock_data_generator.py"
+            )
             return []
     return results
 
