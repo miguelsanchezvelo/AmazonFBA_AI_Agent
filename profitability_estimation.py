@@ -172,6 +172,10 @@ def load_market_data(path: str):
             log_asin_mismatch("profitability_estimation", unknown)
             log(f"profitability_estimation: ASIN mismatch {','.join(sorted(unknown))}")
             if not filtered:
+                print(
+                    "Error: ASIN mismatch with product_results.csv. "
+                    "Run reset_pipeline.py or mock_data_generator.py"
+                )
                 return []
         return filtered
     return rows
