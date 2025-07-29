@@ -29,6 +29,22 @@ streamlit run ui.py
 
 This single command exposes buttons to run each step and view the generated CSV results. The following sections describe the individual scripts if you prefer running them manually.
 
+## Pipeline Overview
+The project is organised as a sequence of scripts that automate the Amazon FBA workflow. They can be executed individually, via `fba_agent.py`, or through the Streamlit UI.
+
+1. **`product_discovery.py`** – find potential products and save them to `data/product_results.csv`.
+2. **`market_analysis.py`** – enrich ASINs with pricing, rating and ranking data.
+3. **`profitability_estimation.py`** – calculate profit and ROI metrics.
+4. **`demand_forecast.py`** – predict monthly sales volume.
+5. **`supplier_selection.py`** – determine suppliers and order quantities.
+6. **`supplier_contact_generator.py`** – craft quote request emails using OpenAI.
+7. **`pricing_simulator.py`** – suggest optimal selling prices.
+8. **`inventory_management.py`** – estimate recommended stock levels.
+9. **`email_monitor.py`** – monitor supplier replies and trigger follow‑ups.
+10. **`order_placement_agent.py`** – place purchase orders automatically.
+11. **`fba_agent.py`** – command‑line driver that runs the full pipeline.
+12. **`ui.py`** – Streamlit interface with buttons for each step.
+
 ## Market Analysis
 To analyze the market potential of existing Amazon products by ASIN, run the
 `market_analysis.py` script. You can enter one or more ASINs when prompted or
