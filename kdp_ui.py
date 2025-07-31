@@ -13,10 +13,10 @@ if section == "KDP":
         niches_df = pd.read_csv("niches_found.csv")
         niches = niches_df["niche"].dropna().unique().tolist()
 
-        st.subheader("🔍 Análisis de Competencia")
+        st.header("🔍 Análisis de Competencia")
 
         if len(niches) < 5:
-            st.info("Menos de 5 nichos encontrados. Analizando todos automáticamente...")
+            st.warning("Menos de 5 nichos detectados. Se analizarán todos automáticamente.")
             summary_rows = []
 
             for niche in niches:
