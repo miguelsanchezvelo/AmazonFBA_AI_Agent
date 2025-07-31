@@ -1454,82 +1454,42 @@ def pipeline_ui() -> None:
     with tabs[4]:
         # --- NUEVO: Pestaña KDP ---
         st.header("KDP (Kindle Direct Publishing)")
-        st.info("Aquí podrás gestionar el pipeline de KDP. Próximamente podrás descubrir nichos, analizar competencia, generar portadas y gestionar publicaciones de libros en Amazon KDP.")
-        # Esqueleto de pasos típicos del pipeline KDP:
-        st.subheader("1. Descubrimiento de Nichos")
-        st.write("Funcionalidad para buscar nichos rentables en KDP. [Por implementar]")
-        st.subheader("2. Análisis de Competencia")
-        st.write("Analiza la competencia en los nichos seleccionados. [Por implementar]")
-        st.subheader("3. Generación de Portadas y Descripciones")
-        st.write("Herramientas para crear portadas y descripciones atractivas. [Por implementar]")
-        st.subheader("4. Publicación y Seguimiento de Ventas")
-        st.write("Gestiona la publicación y monitoriza ventas de tus libros KDP. [Por implementar]")
-        # Aquí puedes ir añadiendo formularios, tablas, botones, etc. según avances.
-        # Ejemplo de botón futuro:
-        # if st.button("Descubrir Nichos KDP"):
-        #     st.success("Funcionalidad en desarrollo.")
 
-        # 1. Descubrimiento de Nichos
-        st.subheader("1. Descubrimiento de Nichos")
-        if st.button("Descubrir nichos rentables"):
-            df_nichos = kdp_module.discover_niches()
-            st.session_state['df_nichos'] = df_nichos  # Guardar en session_state
+        # Sección 1: Descubrimiento de Nichos
+        st.markdown("### 1. Descubrimiento de Nichos")
+        st.markdown("Funcionalidad para buscar nichos rentables en KDP.")
+        if st.button("📘 Descubrir nichos rentables"):
+            niches = pd.DataFrame({"niche": ["diario de gratitud", "planner semanal", "cuaderno de recetas"]})
+            niches.to_csv("niches_found.csv", index=False)
+            st.success("Nichos guardados en niches_found.csv")
 
-        # Mostrar la tabla si existe en session_state
-        if 'df_nichos' in st.session_state:
-            st.dataframe(st.session_state['df_nichos'])
+        # Sección 2: Análisis de Competencia
+        st.markdown("### 2. Análisis de Competencia")
+        st.markdown("Analiza la competencia en los nichos seleccionados.")
+        niche_file = "niches_found.csv"
+        if os.path.exists(niche_file):
+            df_niches = pd.read_csv(niche_file)
+            if not df_niches.empty:
+                selected_niche = st.selectbox("Selecciona un nicho para analizar la competencia", df_niches["niche"].unique())
+                if st.button("📊 Analizar competencia"):
+                    st.info(f"Analizando competencia para el nicho: {selected_niche}... (por implementar)")
+            else:
+                st.warning("El archivo niches_found.csv está vacío. Ejecuta el análisis de nichos primero.")
+        else:
+            st.warning("Primero ejecuta el análisis de nichos para habilitar esta opción.")
 
-        # 2. Análisis de Competencia
-        nicho = st.text_input("Introduce un nicho para analizar la competencia")
-        if st.button("Analizar competencia") and nicho:
-            comp = kdp_module.analyze_competition(nicho)
-            st.session_state['comp_result'] = comp  # Guardar en session_state
-
-        if 'comp_result' in st.session_state:
-            comp = st.session_state['comp_result']
-            st.markdown(f"### Análisis de competencia para: **{comp['niche']}**")
-            col1, col2, col3 = st.columns(3)
-            col1.metric("Top Sellers", comp["top_sellers"])
-            col2.metric("Precio medio", f"${comp['avg_price']:.2f}")
-            col3.metric("Reviews medias", comp["avg_reviews"])
-            st.info(f"**Barreras de entrada:** {comp['barrier_to_entry']}")
-
-        # 3. Generación de Título, Portada y Contenido con IA
-        st.subheader("3. Generación de Título, Portada y Contenido con IA")
+        # Sección 3: Generación de Portadas y Descripciones
+        st.markdown("### 3. Generación de Título, Portada y Contenido con IA")
+        st.markdown("Herramientas para crear portadas y descripciones atractivas.")
         book_format = st.text_input("Formato del libro (ej: diario, planner, cuaderno)")
-        if st.button("Generar libro con IA") and nicho and book_format:
-            with st.spinner("Generando título, descripción y contenido con IA..."):
-                ai_result = kdp_module.generate_kdp_book_ai(nicho, book_format)
-            st.markdown(f"**Título sugerido:** {ai_result['titulo']}")
-            st.markdown(f"**Descripción:** {ai_result['descripcion']}")
-            st.markdown(f"**Ejemplo de contenido:**\n\n{ai_result['contenido']}")
-            # Portada con IA
-            if st.button("Generar portada con IA"):
-                with st.spinner("Generando portada con IA..."):
-                    cover_url = kdp_module.generate_kdp_cover_ai(ai_result['titulo'], nicho)
-                st.image(cover_url, caption="Portada generada por IA")
+        if st.button("🎨 Generar portada y contenido"):
+            st.info(f"Generando portada y contenido para formato: {book_format}... (por implementar)")
 
-        # 4. Publicación y Seguimiento
-        st.subheader("4. Publicación y Seguimiento de Ventas")
-        book_asin = st.text_input("ASIN del libro para seguimiento")
-        if st.button("Simular publicación"):
-            book_data = {"title": title, "niche": nicho, "author": author}
-            pub = kdp_module.publish_book(book_data)
-            st.success(pub["message"])
-        if st.button("Ver ventas simuladas") and book_asin:
-            df_sales = kdp_module.track_sales(book_asin)
-            st.dataframe(df_sales)
-
-        # Buscar tendencias en Pinterest
-        st.subheader("Buscar tendencias en Pinterest")
-        pinterest_query = st.text_input("Palabra clave para buscar en Pinterest", value="journal ideas", key="pinterest_query")
-        if st.button("Buscar en Pinterest"):
-            with st.spinner("Buscando en Pinterest..."):
-                df_pins = kdp_module.search_pinterest_trends(pinterest_query)
-                st.session_state['df_pins'] = df_pins  # Guardar resultados en session_state
-        # Mostrar la tabla si existe en session_state
-        if 'df_pins' in st.session_state:
-            st.dataframe(st.session_state['df_pins'])
+        # Sección 4: Publicación y Seguimiento de Ventas
+        st.markdown("### 4. Publicación y Seguimiento de Ventas")
+        st.markdown("Gestiona la publicación y monitoriza ventas de tus libros KDP.")
+        if st.button("📈 Monitorizar ventas (por implementar)"):
+            st.info("Funcionalidad de seguimiento de ventas pendiente de implementación.")
 
 
 def run_step_ui(label: str, script: str, budget: float, dev_mode: bool) -> None:
