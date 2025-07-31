@@ -83,6 +83,63 @@ TRANSLATIONS = {
     }
 }
 
+def kdp_toolkit_ui() -> None:
+    """Display the KDP Toolkit section."""
+    st.markdown("## 🧠 Kindle Direct Publishing (KDP)")
+
+    # --- 1. Descubrimiento de Nichos ---
+    st.markdown("### 1. Descubrimiento de Nichos")
+    st.markdown("Funcionalidad para buscar nichos rentables en KDP.")
+
+    if st.button("📘 Descubrir nichos rentables"):
+        niches = pd.DataFrame(
+            {"niche": ["diario de gratitud", "planner semanal", "cuaderno de recetas"]}
+        )
+        niches.to_csv("niches_found.csv", index=False)
+        st.success("Nichos guardados en niches_found.csv")
+
+    # --- 2. Análisis de Competencia ---
+    st.markdown("### 2. Análisis de Competencia")
+    st.markdown("Analiza la competencia en los nichos seleccionados.")
+
+    niche_file = "niches_found.csv"
+    if os.path.exists(niche_file):
+        df_niches = pd.read_csv(niche_file)
+        if not df_niches.empty:
+            selected_niche = st.selectbox(
+                "Selecciona un nicho para analizar la competencia",
+                df_niches["niche"].unique(),
+            )
+            if st.button("📊 Analizar competencia"):
+                st.info(
+                    f"Analizando competencia para el nicho: {selected_niche}... (por implementar)"
+                )
+        else:
+            st.warning(
+                "El archivo niches_found.csv está vacío. Ejecuta el análisis de nichos primero."
+            )
+    else:
+        st.warning(
+            "Primero ejecuta el análisis de nichos para habilitar esta opción."
+        )
+
+    # --- 3. Generación de Portadas y Descripciones ---
+    st.markdown("### 3. Generación de Título, Portada y Contenido con IA")
+    st.markdown("Herramientas para crear portadas y descripciones atractivas.")
+
+    book_format = st.text_input("Formato del libro (ej: diario, planner, cuaderno)")
+    if st.button("🎨 Generar portada y contenido"):
+        st.info(
+            f"Generando portada y contenido para formato: {book_format}... (por implementar)"
+        )
+
+    # --- 4. Publicación y Seguimiento de Ventas ---
+    st.markdown("### 4. Publicación y Seguimiento de Ventas")
+    st.markdown("Gestiona la publicación y monitoriza ventas de tus libros KDP.")
+
+    if st.button("📈 Monitorizar ventas (por implementar)"):
+        st.info("Funcionalidad de seguimiento de ventas pendiente de implementación.")
+
 def t(key, **kwargs):
     lang = st.session_state.get('lang', 'en')
     msg = TRANSLATIONS.get(lang, TRANSLATIONS['en']).get(key, key)
@@ -649,9 +706,21 @@ def check_requirements_installed() -> bool:
     return True
 
 
+def main_ui() -> None:
+    """Display the main UI with KDP Toolkit first and the FBA Agent second."""
+    st.set_page_config(page_title="FBA & KDP Toolkit", layout="wide")
+    st.title("📚 KDP Toolkit y Agente Amazon FBA")
+
+    kdp_tab, fba_tab = st.tabs(["KDP Toolkit", "FBA Agent"])
+    with kdp_tab:
+        kdp_toolkit_ui()
+    with fba_tab:
+        pipeline_ui()
+
+
 if __name__ == "__main__":
     args = parse_cli()
     if args.headless:
         run_headless(auto=args.auto)
     else:
-        pipeline_ui()
+        main_ui()
