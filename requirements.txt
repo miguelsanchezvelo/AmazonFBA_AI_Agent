@@ -7,3 +7,4 @@ requests==2.31.0
 serpapi==0.1.5
 urllib3==2.2.1
 plotly
+pandas
