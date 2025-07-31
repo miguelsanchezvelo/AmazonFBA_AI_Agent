@@ -4,6 +4,32 @@ import subprocess
 import logging
 from typing import List, Dict, Optional, Tuple
 
+
+def check_dependencies():
+    import importlib
+    missing = []
+    required = [
+        'streamlit', 'pandas', 'numpy', 'selenium', 'bs4', 'lxml',
+        'requests', 'openai', 'dotenv', 'tqdm'
+    ]
+    for package in required:
+        try:
+            importlib.import_module(package)
+        except ImportError:
+            missing.append(package)
+
+    if missing:
+        print("\u26a0\ufe0f Missing packages detected:")
+        for pkg in missing:
+            print(f" - {pkg}")
+        print("\n👉 Please install them using:")
+        print("   pip install -r requirements.txt\n")
+    else:
+        print("\u2705 All required packages are installed.")
+
+
+check_dependencies()
+
 try:
     import pandas as pd
 except Exception:  # pragma: no cover - pandas missing
