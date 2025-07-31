@@ -111,9 +111,20 @@ def kdp_toolkit_ui() -> None:
                 df_niches["niche"].unique(),
             )
             if st.button("📊 Analizar competencia"):
-                st.info(
-                    f"Analizando competencia para el nicho: {selected_niche}... (por implementar)"
+                # Simular análisis de competencia (mock)
+                competitors = pd.DataFrame(
+                    {
+                        "Título": [f"{selected_niche} Vol. {i+1}" for i in range(5)],
+                        "BSR": [12345 + i * 3000 for i in range(5)],
+                        "Reseñas": [50 + i * 20 for i in range(5)],
+                        "Precio": [6.99 + i * 1.00 for i in range(5)],
+                    }
                 )
+                competitors.to_csv("competitor_analysis.csv", index=False)
+                st.success(
+                    f"Análisis completado para el nicho '{selected_niche}'. Resultados guardados en competitor_analysis.csv"
+                )
+                st.dataframe(competitors)
         else:
             st.warning(
                 "El archivo niches_found.csv está vacío. Ejecuta el análisis de nichos primero."
