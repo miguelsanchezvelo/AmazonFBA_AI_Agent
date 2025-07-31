@@ -9,8 +9,29 @@ section = st.sidebar.radio("Selecciona una sección", ["KDP", "FBA", "Análisis"
 if section == "KDP":
     st.title("📘 Kindle Direct Publishing (KDP)")
 
+    st.header("🔎 Resumen del Análisis de Nichos")
+
     if os.path.exists("niches_found.csv"):
         niches_df = pd.read_csv("niches_found.csv")
+
+        st.markdown("### 📊 Nichos Detectados")
+        st.markdown("Fuente: *Selenium scraping sobre Amazon.es autocomplete*")
+
+        st.dataframe(
+            niches_df[
+                ["niche", "competition", "avg_bsr", "saturation", "search_volume"]
+            ]
+        )
+
+        st.markdown(
+            """
+            **Notas de interpretación:**
+            - Una **competencia baja** (< 1000) y un **BSR bajo** (< 100000) indican buena oportunidad.
+            - La métrica `saturation = competition / avg_bsr` refleja la relación entre oferta y demanda.
+            - El `search_volume` se mostrará como "N/A" hasta que se conecte con una API (como Helium 10).
+            """
+        )
+
         niches = niches_df["niche"].dropna().unique().tolist()
 
         st.header("🔍 Análisis de Competencia")
@@ -44,4 +65,6 @@ if section == "KDP":
                 st.subheader(f"📄 Resultados para: {selected_niche}")
                 st.dataframe(result_df)
     else:
-        st.warning("No se encontró el archivo niches_found.csv. Por favor, lanza primero el descubrimiento de nichos.")
+        st.warning(
+            "⚠️ Aún no se ha generado el archivo niches_found.csv. Haz clic en 'Buscar Nichos'."
+        )
