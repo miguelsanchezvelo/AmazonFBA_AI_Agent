@@ -9,26 +9,29 @@ section = st.sidebar.radio("Selecciona una sección", ["KDP", "FBA", "Análisis"
 if section == "KDP":
     st.title("📘 Kindle Direct Publishing (KDP)")
 
-    st.header("🔎 Resumen del Análisis de Nichos")
+    st.subheader("🔎 Análisis de Nichos")
 
+    # Paso 1: Botón para ejecutar discovery
+    if st.button("Buscar Nichos"):
+        with st.spinner("Buscando nichos rentables en Amazon..."):
+            subprocess.run(["python", "kdp_discovery.py", "--keyword", "diario"], check=True)
+
+    # Paso 2: Mostrar tabla si existe archivo
     if os.path.exists("niches_found.csv"):
         niches_df = pd.read_csv("niches_found.csv")
 
         st.markdown("### 📊 Nichos Detectados")
         st.markdown("Fuente: *Selenium scraping sobre Amazon.es autocomplete*")
 
-        st.dataframe(
-            niches_df[
-                ["niche", "competition", "avg_bsr", "saturation", "search_volume"]
-            ]
-        )
+        st.dataframe(niches_df[["niche", "competition", "avg_bsr", "saturation", "search_volume"]])
 
         st.markdown(
             """
             **Notas de interpretación:**
-            - Una **competencia baja** (< 1000) y un **BSR bajo** (< 100000) indican buena oportunidad.
-            - La métrica `saturation = competition / avg_bsr` refleja la relación entre oferta y demanda.
-            - El `search_volume` se mostrará como "N/A" hasta que se conecte con una API (como Helium 10).
+            - Una **competencia baja** (< 1000) indica menos saturación.
+            - Un **BSR bajo** (< 100000) indica buena demanda.
+            - `saturation = competition / avg_bsr` mide la dificultad relativa.
+            - `search_volume` se mostrará como "N/A" hasta conectar con una API externa.
             """
         )
 
