@@ -11,10 +11,19 @@ if section == "KDP":
 
     st.subheader("🔎 Análisis de Nichos")
 
-    # Paso 1: Botón para ejecutar discovery
+    selected_keyword = st.selectbox(
+        "Selecciona una keyword base",
+        ["diario", "planner", "cuaderno", "notebook", "gratitud"],
+    )
+
     if st.button("Buscar Nichos"):
         with st.spinner("Buscando nichos rentables en Amazon..."):
-            subprocess.run(["python", "kdp_discovery.py", "--keyword", "diario"], check=True)
+            subprocess.run([
+                "python",
+                "kdp_discovery.py",
+                "--keyword",
+                selected_keyword,
+            ], check=True)
 
     # Paso 2: Mostrar tabla si existe archivo
     if os.path.exists("niches_found.csv"):
@@ -28,10 +37,10 @@ if section == "KDP":
         st.markdown(
             """
             **Notas de interpretación:**
-            - Una **competencia baja** (< 1000) indica menos saturación.
-            - Un **BSR bajo** (< 100000) indica buena demanda.
-            - `saturation = competition / avg_bsr` mide la dificultad relativa.
-            - `search_volume` se mostrará como "N/A" hasta conectar con una API externa.
+            - `competition < 1000` → baja saturación.
+            - `BSR < 100000` → alta demanda.
+            - `saturation = competition / avg_bsr`.
+            - `search_volume` es un placeholder hasta integrar una API.
             """
         )
 
