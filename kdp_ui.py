@@ -20,7 +20,7 @@ DEFAULT_KEYWORDS = [
 ]
 
 KEYWORDS_FILE = "keywords.json"
-NICHES_FILE = "niches_found.csv"
+NICHES_FILE = "niches_found.csv"  # legacy default path
 
 
 def ensure_keywords() -> list[str]:
@@ -39,25 +39,29 @@ def ensure_keywords() -> list[str]:
 
 
 def kdp_section() -> None:
-    """Render the niche discovery section."""
+    """Render the niche discovery section with per-keyword results."""
     st.subheader("🔎 Análisis de Nichos")
 
     keyword_options = ensure_keywords()
     selected_keyword = st.selectbox("Selecciona una keyword base:", keyword_options)
 
+    # Nombre de archivo específico para la keyword
+    niches_file = f"niches_{selected_keyword.lower().replace(' ', '_')}.csv"
+
     if st.button("Buscar Nichos"):
         with st.spinner(f"Buscando nichos relacionados con '{selected_keyword}'..."):
-            subprocess.run([sys.executable, "kdp_discovery.py", "--keyword", selected_keyword], check=False)
+            subprocess.run([sys.executable, "kdp_discovery.py", "--keyword", selected_keyword], check=True)
 
-    if os.path.exists(NICHES_FILE):
-        df = pd.read_csv(NICHES_FILE)
-        st.markdown("### 📊 Nichos Detectados")
+    # Mostrar resultados si existe el archivo generado para la keyword
+    if os.path.exists(niches_file):
+        df = pd.read_csv(niches_file)
+
+        st.markdown(f"### 📊 Nichos Detectados para '{selected_keyword}'")
         st.markdown("Fuente: *Selenium scraping sobre Amazon.es autocomplete*")
-        cols = [c for c in ["niche", "competition", "avg_bsr", "saturation", "search_volume"] if c in df.columns]
-        if cols:
-            st.dataframe(df[cols])
-        else:
-            st.dataframe(df)
+
+        cols = ["niche", "competition", "avg_bsr", "saturation", "search_volume"]
+        st.dataframe(df[[c for c in cols if c in df.columns]])
+
         st.markdown(
             """
     **Notas de interpretación:**
@@ -68,7 +72,7 @@ def kdp_section() -> None:
     """
         )
     else:
-        st.warning("⚠️ Aún no se ha generado el archivo niches_found.csv. Haz clic en 'Buscar Nichos'.")
+        st.warning(f"⚠️ Aún no se ha generado el archivo {niches_file}. Haz clic en 'Buscar Nichos'.")
 
 
 def run_headless(auto: bool = False) -> None:
