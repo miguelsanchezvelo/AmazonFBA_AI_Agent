@@ -629,8 +629,8 @@ def pipeline_ui() -> None:
             st.session_state.imap_server = imap_server
             st.success(t('api_keys_saved'))
     # --- NUEVO: Tabs principales ---
-    tabs = st.tabs(["FBA", "Product Selection", "Product Tracker", "E-mail Management", "KDP"])
-    with tabs[0]:
+    tabs = st.tabs(["KDP", "FBA", "Product Selection", "Product Tracker", "E-mail Management"])
+    with tabs[1]:
         # --- Botones principales arriba y en horizontal ---
         col1, col2, col3 = st.columns(3)
         with col1:
@@ -760,7 +760,7 @@ def pipeline_ui() -> None:
         # Mostrar solo el resumen al final (los mensajes ya están en el nuevo bloque)
         st.header(t('summary'))
         summary_screen()
-    with tabs[1]:
+    with tabs[2]:
         st.header("Product Selection")
         # Cargar productos investigados
         import pandas as pd
@@ -789,7 +789,7 @@ def pipeline_ui() -> None:
             st.success(f"Selected products: {', '.join(st.session_state['selected_products'])}")
         else:
             st.info("No investigated products found. Run the pipeline or generate mock data.")
-    with tabs[2]:
+    with tabs[3]:
         st.header("Product Tracker")
         # --- Inicializar stock_in, stock_out y stock_actual a 0 al principio del bloque Product Tracker ---
         stock_in = 0
@@ -1316,7 +1316,7 @@ def pipeline_ui() -> None:
                         st.warning(f"⚠️ Anomaly detected in sales on {anomaly['date']}! Real: {anomaly['real']}, Expected: {anomaly['expected_range']}. Consider reviewing inventory or contacting your supplier.")
         else:
             st.info("Product tracking is only available in developer mode. Please enable developer mode to use mock data, or import real product data.")
-    with tabs[3]:
+    with tabs[4]:
         # --- SOLO aquí va la UI de gestión de emails ---
         st.header(t('email_agent_instructions'))
         if st.session_state.get("email_address") and st.session_state.get("email_password"):
@@ -1451,7 +1451,7 @@ def pipeline_ui() -> None:
                         st.error(f"Error enviando email: {e}")
         else:
             st.warning(t('email_address') + "/" + t('email_password') + " " + t('not_configured'))
-    with tabs[4]:
+    with tabs[0]:
         # --- NUEVO: Pestaña KDP ---
         st.header("KDP (Kindle Direct Publishing)")
 
