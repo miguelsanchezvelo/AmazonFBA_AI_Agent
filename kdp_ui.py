@@ -54,22 +54,25 @@ def kdp_section() -> None:
 
     # Mostrar resultados si existe el archivo generado para la keyword
     if os.path.exists(niches_file):
-        df = pd.read_csv(niches_file)
+        niches_df = pd.read_csv(niches_file)
 
         st.markdown(f"### 📊 Nichos Detectados para '{selected_keyword}'")
         st.markdown("Fuente: *Selenium scraping sobre Amazon.es autocomplete*")
 
         # Validar columnas antes de intentar mostrarlas
         expected_cols = ["niche", "competition", "avg_bsr", "saturation", "search_volume"]
-        if not all(col in df.columns for col in expected_cols):
-            st.error(f"❌ El archivo `{niches_file}` no contiene todas las columnas esperadas.")
-            st.code(
-                f"Columnas encontradas: {list(df.columns)}\n"
-                f"Faltantes: {[col for col in expected_cols if col not in df.columns]}"
-            )
+        expected_cols = ["niche", "competition", "avg_bsr", "saturation", "search_volume"]
+        missing_cols = [col for col in expected_cols if col not in niches_df.columns]
+
+        if missing_cols:
+            st.error("❌ El archivo no contiene todas las columnas esperadas.")
+            st.code(f"Columnas encontradas: {list(niches_df.columns)}\nFaltantes: {missing_cols}")
             st.stop()
 
-        st.dataframe(df[expected_cols])
+
+            st.stop()
+
+        st.dataframe(niches_df[expected_cols])
 
         st.markdown(
             """
