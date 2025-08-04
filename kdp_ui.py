@@ -59,12 +59,14 @@ def kdp_section() -> None:
         st.markdown(f"### 📊 Nichos Detectados para '{selected_keyword}'")
         st.markdown("Fuente: *Selenium scraping sobre Amazon.es autocomplete*")
 
-        # Validar columnas esperadas antes de mostrar tabla
+        # Validar columnas antes de intentar mostrarlas
         expected_cols = ["niche", "competition", "avg_bsr", "saturation", "search_volume"]
-        missing_cols = [col for col in expected_cols if col not in df.columns]
-
-        if missing_cols:
-            st.error(f"⚠️ El archivo `{niches_file}` no contiene las columnas esperadas: {missing_cols}")
+        if not all(col in df.columns for col in expected_cols):
+            st.error(f"❌ El archivo `{niches_file}` no contiene todas las columnas esperadas.")
+            st.code(
+                f"Columnas encontradas: {list(df.columns)}\n"
+                f"Faltantes: {[col for col in expected_cols if col not in df.columns]}"
+            )
             st.stop()
 
         st.dataframe(df[expected_cols])
