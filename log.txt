@@ -477,3 +477,21 @@ Descartados por ASIN no encontrado: 0.
 2025-07-14 17:42:10 RESULT negotiation_agent skipped 0s service
 2025-07-14 17:42:10 RESULT email_manager skipped 0s service
 2025-07-14 17:42:10 START order_placement_agent
+2025-09-10 11:31:34 RUN START
+2025-09-10 11:31:53 BUDGET 1500.0
+2025-09-10 11:31:53 START product_discovery
+2025-09-10 11:31:55 RESULT product_discovery failed 1.1s Command '['C:\\Users\\msvelo\\Documents\\private_msv\\AmazonFBA_AI_Agent\\venv\\Scripts\\python.exe', 'product_discovery.py', '--budget', '1500.0']' returned non-zero exit status 2.
+2025-09-10 11:31:55 START market_analysis
+2025-09-10 11:31:58 RESULT market_analysis failed 3.2s Command '['C:\\Users\\msvelo\\Documents\\private_msv\\AmazonFBA_AI_Agent\\venv\\Scripts\\python.exe', 'market_analysis.py', '--csv', 'data\\product_results.csv']' returned non-zero exit status 2.
+2025-09-10 11:31:58 RESULT review_analysis skipped 0s missing_input
+2025-09-10 11:31:58 RESULT profitability_estimation skipped 0s missing_input
+2025-09-10 11:31:58 RESULT demand_forecast skipped 0s missing_input
+2025-09-10 11:31:58 START supplier_selection
+2025-09-10 11:31:59 RESULT supplier_selection failed 0.9s Command '['C:\\Users\\msvelo\\Documents\\private_msv\\AmazonFBA_AI_Agent\\venv\\Scripts\\python.exe', 'supplier_selection.py', '--budget', '1500.0']' returned non-zero exit status 2.
+2025-09-10 11:31:59 RESULT supplier_contact_generator skipped 0s service
+2025-09-10 11:31:59 RESULT pricing_simulator skipped 0s service
+2025-09-10 11:31:59 START inventory_management
+2025-09-10 11:32:00 RESULT inventory_management completed 0.9s
+2025-09-10 11:32:00 RESULT negotiation_agent skipped 0s service
+2025-09-10 11:32:00 RESULT email_manager skipped 0s service
+2025-09-10 11:32:00 START order_placement_agent

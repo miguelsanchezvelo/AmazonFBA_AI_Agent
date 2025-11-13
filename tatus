@@ -1,0 +1,29 @@
+[33mcommit 570274ad3fc014b8d15cd8249925207a130e3655[m[33m ([m[1;31morigin/n9xsga-codex/update-kdp-section-in-kdp_ui.py[m[33m)[m
+Author: miguelsanchezvelo <m_sanchezvelo96@hotmail.com>
+Date:   Fri Aug 1 09:53:44 2025 +0200
+
+    Update KDP UI discovery options
+
+[33mcommit 7b05e52aa94dea95b03804263860789566affa78[m[33m ([m[1;31morigin/codex/update-kdp-section-in-kdp_ui.py[m[33m)[m
+Author: miguelsanchezvelo <m_sanchezvelo96@hotmail.com>
+Date:   Fri Aug 1 09:43:56 2025 +0200
+
+    Add niche discovery UI section
+
+[33mcommit b7771b15186ca232bc203a3efeeb209131f75cab[m[33m ([m[1;31morigin/codex/add-summary-section-for-niche-discovery[m[33m)[m
+Author: miguelsanchezvelo <m_sanchezvelo96@hotmail.com>
+Date:   Thu Jul 31 17:15:42 2025 +0200
+
+    feat: show niche discovery summary
+
+[33mcommit 363c92ba59a2e57b7a832b37f10ac07540c22ce4[m[33m ([m[1;31morigin/codex/update-kdp_ui.py-with-kdp-tab-and-niche-analysis[m[33m)[m
+Author: miguelsanchezvelo <m_sanchezvelo96@hotmail.com>
+Date:   Thu Jul 31 13:59:13 2025 +0200
+
+    Improve KDP competition UI messaging
+
+[33mcommit caab3d98e599b4e9a2626267a4441a046fa0b7af[m[33m ([m[1;31morigin/codex/update-kdp_ui.py-for-niche-analysis[m[33m)[m
+Author: miguelsanchezvelo <m_sanchezvelo96@hotmail.com>
+Date:   Thu Jul 31 13:47:51 2025 +0200
+
+    Add KDP-focused UI
