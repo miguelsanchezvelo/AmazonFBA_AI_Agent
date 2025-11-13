@@ -1,0 +1,69 @@
+# Production Dockerfile for Backend
+# Optimized multi-stage build for production deployment
+
+# Stage 1: Builder
+FROM python:3.11-slim as builder
+
+WORKDIR /app
+
+# Install build dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    postgresql-client \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements and install dependencies
+COPY backend/requirements.txt .
+RUN pip install --no-cache-dir --user -r requirements.txt
+
+# Stage 2: Production
+FROM python:3.11-slim
+
+# Create non-root user
+RUN groupadd -r fbauser && useradd -r -g fbauser fbauser
+
+WORKDIR /app
+
+# Install runtime dependencies only
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    postgresql-client \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy Python dependencies from builder
+COPY --from=builder /root/.local /home/fbauser/.local
+
+# Copy application code
+COPY backend/ /app/backend/
+COPY alembic/ /app/alembic/
+COPY alembic.ini /app/
+
+# Set ownership
+RUN chown -R fbauser:fbauser /app
+
+# Switch to non-root user
+USER fbauser
+
+# Add user site-packages to PATH
+ENV PATH=/home/fbauser/.local/bin:$PATH
+ENV PYTHONPATH=/app:$PYTHONPATH
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+    CMD curl -f http://localhost:8000/health || exit 1
+
+# Expose port
+EXPOSE 8000
+
+# Run with gunicorn for production
+CMD ["gunicorn", "backend.api.main:app", \
+     "--worker-class", "uvicorn.workers.UvicornWorker", \
+     "--workers", "4", \
+     "--bind", "0.0.0.0:8000", \
+     "--access-logfile", "-", \
+     "--error-logfile", "-", \
+     "--log-level", "info", \
+     "--timeout", "120", \
+     "--graceful-timeout", "30", \
+     "--keep-alive", "5"]
+

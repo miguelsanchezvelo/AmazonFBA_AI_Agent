@@ -1,0 +1,86 @@
+```mermaid
+erDiagram
+    PRODUCTS ||--o{ ANALYSES : "has"
+    PRODUCTS ||--o| INVENTORY : "has"
+    PRODUCTS ||--o{ PRODUCT_SUPPLIERS : "has"
+    SUPPLIERS ||--o{ PRODUCT_SUPPLIERS : "supplies"
+    SUPPLIERS ||--o{ COMMUNICATIONS : "has"
+    PRODUCTS ||--o{ COMMUNICATIONS : "related_to"
+    PRODUCTS ||--o{ EVENTS : "generates"
+    
+    PRODUCTS {
+        int id PK
+        string asin UK
+        string title
+        decimal price
+        decimal rating
+        int reviews_count
+        int bsr
+        string category
+        string status
+        datetime created_at
+        datetime updated_at
+    }
+    
+    ANALYSES {
+        int id PK
+        int product_id FK
+        string asin
+        json market_data
+        json profitability_data
+        json demand_data
+        int viability_score
+        string recommendation
+        datetime analyzed_at
+    }
+    
+    INVENTORY {
+        int id PK
+        int product_id FK
+        string asin
+        int quantity
+        int reorder_point
+        int reorder_quantity
+        decimal unit_cost
+        string status
+        datetime updated_at
+    }
+    
+    SUPPLIERS {
+        int id PK
+        string name
+        string country
+        string email
+        string rating
+        int min_order_quantity
+        datetime created_at
+    }
+    
+    PRODUCT_SUPPLIERS {
+        int id PK
+        int product_id FK
+        int supplier_id FK
+        decimal unit_cost
+        datetime quote_date
+    }
+    
+    COMMUNICATIONS {
+        int id PK
+        int supplier_id FK
+        string type
+        string direction
+        text content
+        datetime timestamp
+    }
+    
+    EVENTS {
+        int id PK
+        string event_id UK
+        string event_type
+        string source
+        json payload
+        string status
+        datetime timestamp
+    }
+```
+

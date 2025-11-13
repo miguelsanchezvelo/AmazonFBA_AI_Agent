@@ -1,0 +1,94 @@
+```mermaid
+graph TB
+    subgraph "Public Internet"
+        USER[Users/Browsers]
+    end
+    
+    subgraph "Edge Layer"
+        CF[Cloudflare CDN]
+        LB[Load Balancer]
+    end
+    
+    subgraph "Kubernetes Cluster"
+        subgraph "Ingress"
+            NGINX[Nginx Ingress Controller]
+        end
+        
+        subgraph "Application Pods"
+            API1[FastAPI Pod 1]
+            API2[FastAPI Pod 2]
+            API3[FastAPI Pod 3]
+            
+            AGENT1[Agent Pod 1]
+            AGENT2[Agent Pod 2]
+            AGENT3[Agent Pod 3]
+        end
+        
+        subgraph "Data Services"
+            REDIS[(Redis Cluster)]
+            PG[(PostgreSQL<br/>Primary)]
+            PG_REPLICA[(PostgreSQL<br/>Replica)]
+        end
+        
+        subgraph "Monitoring"
+            PROM[Prometheus]
+            GRAF[Grafana]
+            LOKI[Loki Logs]
+        end
+    end
+    
+    subgraph "External Services"
+        S3[(AWS S3)]
+        APIS[External APIs<br/>SerpAPI, OpenAI]
+    end
+    
+    USER --> CF
+    CF --> LB
+    LB --> NGINX
+    
+    NGINX --> API1
+    NGINX --> API2
+    NGINX --> API3
+    
+    API1 --> REDIS
+    API2 --> REDIS
+    API3 --> REDIS
+    
+    API1 --> PG
+    API2 --> PG_REPLICA
+    API3 --> PG_REPLICA
+    
+    AGENT1 --> REDIS
+    AGENT2 --> REDIS
+    AGENT3 --> REDIS
+    
+    AGENT1 --> PG_REPLICA
+    AGENT2 --> PG_REPLICA
+    
+    AGENT1 --> APIS
+    AGENT2 --> APIS
+    
+    API1 --> S3
+    
+    API1 --> PROM
+    AGENT1 --> PROM
+    PROM --> GRAF
+    PROM --> LOKI
+
+    style USER fill:#e3f2fd
+    style CF fill:#bbdefb
+    style LB fill:#90caf9
+    style NGINX fill:#64b5f6
+    style API1 fill:#42a5f5
+    style API2 fill:#42a5f5
+    style API3 fill:#42a5f5
+    style AGENT1 fill:#fff9c4
+    style AGENT2 fill:#fff9c4
+    style AGENT3 fill:#fff9c4
+    style PG fill:#ffccbc
+    style PG_REPLICA fill:#ffccbc
+    style REDIS fill:#c8e6c9
+    style PROM fill:#f3e5f5
+    style GRAF fill:#f3e5f5
+```
+

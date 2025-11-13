@@ -1,0 +1,24 @@
+# Testing Requirements
+
+# Test Framework
+pytest>=7.4.0
+pytest-asyncio>=0.21.0
+pytest-cov>=4.1.0
+pytest-timeout>=2.1.0
+pytest-mock>=3.11.0
+
+# HTTP Testing
+httpx>=0.24.0
+requests-mock>=1.11.0
+
+# Database Testing
+pytest-postgresql>=5.0.0
+sqlalchemy>=2.0.0
+
+# Async Testing
+aioresponses>=0.7.4
+
+# Code Quality
+coverage>=7.2.0
+pytest-xdist>=3.3.0  # Parallel test execution
+

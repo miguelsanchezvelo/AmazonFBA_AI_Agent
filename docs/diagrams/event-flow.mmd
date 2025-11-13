@@ -1,0 +1,53 @@
+```mermaid
+sequenceDiagram
+    participant User
+    participant API
+    participant EventBus
+    participant DiscoveryAgent
+    participant AnalysisAgent
+    participant SupplierAgent
+    participant PricingAgent
+    participant InventoryAgent
+    
+    User->>API: POST /products/discover<br/>(budget: 3000)
+    API->>EventBus: TrendDiscoveryRequested event
+    
+    EventBus->>DiscoveryAgent: deliver event
+    
+    DiscoveryAgent->>DiscoveryAgent: Get trending keywords
+    DiscoveryAgent->>DiscoveryAgent: Search products (SerpAPI)
+    DiscoveryAgent->>DiscoveryAgent: Filter & rank products
+    DiscoveryAgent->>EventBus: ProductDiscovered event<br/>(15 products)
+    
+    EventBus->>AnalysisAgent: deliver ProductDiscovered
+    
+    par Parallel Analysis
+        AnalysisAgent->>AnalysisAgent: Calculate profitability
+        AnalysisAgent->>AnalysisAgent: Analyze demand
+        AnalysisAgent->>AnalysisAgent: Evaluate competition
+    end
+    
+    AnalysisAgent->>EventBus: AnalysisComplete event<br/>(recommendation: BUY)
+    
+    par Parallel Processing
+        EventBus->>SupplierAgent: deliver AnalysisComplete
+        EventBus->>PricingAgent: deliver AnalysisComplete
+    end
+    
+    SupplierAgent->>SupplierAgent: Search suppliers
+    SupplierAgent->>SupplierAgent: Generate messages (OpenAI)
+    SupplierAgent->>EventBus: SupplierContactGenerated
+    
+    PricingAgent->>PricingAgent: Calculate optimal price
+    PricingAgent->>EventBus: PriceOptimized event
+    
+    EventBus->>InventoryAgent: PriceOptimized event
+    InventoryAgent->>InventoryAgent: Initialize inventory tracking
+    InventoryAgent->>EventBus: InventoryUpdated event
+    
+    EventBus->>API: aggregate all events
+    API->>User: WebSocket update<br/>(real-time results)
+    
+    Note over User,InventoryAgent: Complete pipeline: ~40 seconds<br/>(vs 120s in V1)
+```
+

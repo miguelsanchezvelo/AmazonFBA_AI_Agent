@@ -1,0 +1,96 @@
+```mermaid
+graph TB
+    subgraph "Frontend Layer"
+        UI[React Dashboard]
+        WS[WebSocket Client]
+    end
+    
+    subgraph "API Layer"
+        NGINX[Nginx Reverse Proxy]
+        API[FastAPI Gateway]
+        WSS[WebSocket Server]
+    end
+    
+    subgraph "Agent Layer"
+        DA[Discovery Agent]
+        AA[Analysis Agent]
+        SA[Supplier Agent]
+        PA[Pricing Agent]
+        IA[Inventory Agent]
+    end
+    
+    subgraph "Core Services"
+        EB[Event Bus<br/>Redis Streams]
+        ORCH[Orchestrator]
+        CACHE[(Redis Cache)]
+    end
+    
+    subgraph "Data Layer"
+        DB[(PostgreSQL)]
+        S3[(S3 Storage)]
+    end
+    
+    subgraph "External APIs"
+        SERP[SerpAPI]
+        OAI[OpenAI]
+        TRENDS[Google Trends]
+    end
+    
+    subgraph "Monitoring"
+        PROM[Prometheus]
+        GRAF[Grafana]
+    end
+    
+    UI --> NGINX
+    WS --> NGINX
+    NGINX --> API
+    NGINX --> WSS
+    API --> EB
+    WSS --> EB
+    
+    EB --> DA
+    EB --> AA
+    EB --> SA
+    EB --> PA
+    EB --> IA
+    
+    DA --> ORCH
+    AA --> ORCH
+    SA --> ORCH
+    PA --> ORCH
+    IA --> ORCH
+    
+    ORCH --> EB
+    
+    DA -.->|uses| CACHE
+    AA -.->|uses| CACHE
+    SA -.->|uses| CACHE
+    
+    DA --> SERP
+    SA --> OAI
+    PA --> OAI
+    AA --> TRENDS
+    
+    DA --> DB
+    AA --> DB
+    SA --> DB
+    PA --> DB
+    IA --> DB
+    
+    API --> PROM
+    DA --> PROM
+    AA --> PROM
+    
+    PROM --> GRAF
+
+    style UI fill:#e1f5ff
+    style API fill:#b3e5fc
+    style DA fill:#fff9c4
+    style AA fill:#fff9c4
+    style SA fill:#fff9c4
+    style PA fill:#fff9c4
+    style IA fill:#fff9c4
+    style EB fill:#c8e6c9
+    style DB fill:#ffccbc
+```
+
